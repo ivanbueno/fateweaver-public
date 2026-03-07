@@ -5,6 +5,16 @@
 
     // ─── LAMBDA URL ──────────────────────────────────────────
     const LAMBDA_PLACEHOLDER = 'YOUR_LAMBDA_URL_HERE';
+    // Configure this via APP_CONFIG.gaMeasurementId (or googleAnalyticsId).
+    const GA_MEASUREMENT_ID = (() => {
+      const fromConfig = window.APP_CONFIG?.gaMeasurementId || window.APP_CONFIG?.googleAnalyticsId || '';
+      if (fromConfig) return String(fromConfig).trim();
+      try {
+        return (localStorage.getItem('visualnovel_ga_measurement_id') || '').trim();
+      } catch {
+        return '';
+      }
+    })();
 
     // ─── DATA ────────────────────────────────────────────────
     const GENRES = [
@@ -285,6 +295,77 @@
       imageMode:     'lambda', // 'lambda' | 'terrain'
     };
 
+    // ─── ANALYTICS (Google Analytics 4) ───────────────────────
+    const GA_ID_RE = /^G-[A-Z0-9]+$/;
+    const A = {
+      enabled: false,
+      lastScreen: null,
+      sessionId: `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      storyStartedAt: 0,
+    };
+
+    function gaSafe(value, maxLen = 120) {
+      if (value === null || value === undefined) return '';
+      return String(value).slice(0, maxLen);
+    }
+
+    function gaErrorCode(err) {
+      const msg = gaSafe(err?.message || err).toLowerCase();
+      if (msg.includes('timed out')) return 'timeout';
+      if (msg.includes('http')) return 'http_error';
+      if (msg.includes('no internet')) return 'offline';
+      if (msg.includes('lambda')) return 'lambda_error';
+      return 'unknown';
+    }
+
+    function gaPageMeta(pageId) {
+      const id = pageId || '';
+      const m = id.match(/^page_(\d+)/);
+      return {
+        beat: m ? Number(m[1]) : 0,
+        path: id.includes('neutral') ? 'neutral' : id.includes('bad') ? 'bad' : 'good',
+      };
+    }
+
+    function gaStoryParams(extra = {}) {
+      return {
+        genre: gaSafe(S.genre || 'none', 48),
+        era: gaSafe(S.era || 'none', 48),
+        archetype: gaSafe(S.archetype || 'none', 48),
+        image_mode: gaSafe(S.imageMode || 'none', 16),
+        ...extra,
+      };
+    }
+
+    function trackEvent(name, params = {}) {
+      if (!A.enabled || typeof window.gtag !== 'function') return;
+      window.gtag('event', name, { session_id: A.sessionId, ...params });
+    }
+
+    function initAnalytics() {
+      if (!GA_ID_RE.test(GA_MEASUREMENT_ID)) return;
+      if (document.getElementById('ga-gtag')) { A.enabled = true; return; }
+
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = window.gtag || function gtag(){ window.dataLayer.push(arguments); };
+
+      window.gtag('js', new Date());
+      window.gtag('config', GA_MEASUREMENT_ID, { send_page_view: false, anonymize_ip: true });
+
+      const script = document.createElement('script');
+      script.id = 'ga-gtag';
+      script.async = true;
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA_MEASUREMENT_ID)}`;
+      script.onerror = () => { A.enabled = false; };
+      document.head.appendChild(script);
+
+      A.enabled = true;
+      trackEvent('app_loaded', {
+        lambda_configured: Number(Boolean(S.lambdaUrl && S.lambdaUrl !== LAMBDA_PLACEHOLDER)),
+        image_mode: gaSafe(S.imageMode || 'none', 16),
+      });
+    }
+
     /* ─── COLOUR UTILITY (mirrors `color` npm API) ──────────── */
     class Col {
       constructor(hex) {
@@ -464,9 +545,17 @@
       document.querySelectorAll('.screen').forEach(s => {
         s.id === `screen-${name}` ? s.classList.remove('hidden') : s.classList.add('hidden');
       });
+      if (A.lastScreen !== name) {
+        A.lastScreen = name;
+        trackEvent('screen_view', gaStoryParams({ screen_name: gaSafe(name, 24) }));
+      }
     }
 
     /* ─── SETTINGS / LAMBDA URL ────────────────────────────── */
+    function lambdaHost(url) {
+      try { return gaSafe(new URL(url).host, 80); } catch { return ''; }
+    }
+
     function initLambdaUrl() {
       const configured = window.APP_CONFIG?.lambdaUrl;
       const stored = localStorage.getItem('visualnovel_lambda_url');
@@ -481,18 +570,48 @@
         setTimeout(() => document.getElementById('settings-overlay').classList.remove('hidden'), 500);
       }
     }
-    function toggleSettings() { document.getElementById('settings-overlay').classList.toggle('hidden'); }
-    function closeSettings()  { document.getElementById('settings-overlay').classList.add('hidden'); }
+    function toggleSettings() {
+      const overlay = document.getElementById('settings-overlay');
+      overlay.classList.toggle('hidden');
+      trackEvent('settings_toggled', gaStoryParams({
+        state: overlay.classList.contains('hidden') ? 'closed' : 'open',
+      }));
+    }
+    function closeSettings()  {
+      const overlay = document.getElementById('settings-overlay');
+      const wasOpen = !overlay.classList.contains('hidden');
+      overlay.classList.add('hidden');
+      if (wasOpen) trackEvent('settings_toggled', gaStoryParams({ state: 'closed' }));
+    }
     function saveLambdaUrl() {
       const v = document.getElementById('lambda-url-input').value.trim();
-      if (!v.startsWith('http')) { alert('Please enter a valid URL starting with https://'); return; }
+      if (!v.startsWith('http')) {
+        trackEvent('lambda_url_save_failed', { reason: 'invalid_url' });
+        alert('Please enter a valid URL starting with https://');
+        return;
+      }
       S.lambdaUrl = v;
       localStorage.setItem('visualnovel_lambda_url', v);
+      trackEvent('lambda_url_saved', {
+        lambda_host: lambdaHost(v),
+        lambda_https: Number(v.startsWith('https://')),
+      });
       closeSettings();
     }
 
-    function toggleInfo() { document.getElementById('info-overlay').classList.toggle('hidden'); }
-    function closeInfo()  { document.getElementById('info-overlay').classList.add('hidden'); }
+    function toggleInfo() {
+      const overlay = document.getElementById('info-overlay');
+      overlay.classList.toggle('hidden');
+      trackEvent('info_toggled', {
+        state: overlay.classList.contains('hidden') ? 'closed' : 'open',
+      });
+    }
+    function closeInfo()  {
+      const overlay = document.getElementById('info-overlay');
+      const wasOpen = !overlay.classList.contains('hidden');
+      overlay.classList.add('hidden');
+      if (wasOpen) trackEvent('info_toggled', { state: 'closed' });
+    }
 
     /* ─── SETUP SCREEN ─────────────────────────────────────── */
     function buildGrid(containerId, items, stateKey, limit = null) {
@@ -509,6 +628,10 @@
           grid.querySelectorAll('.opt').forEach(b => b.classList.remove('sel'));
           btn.classList.add('sel');
           S[stateKey] = label;
+          trackEvent('selection_changed', gaStoryParams({
+            field: gaSafe(stateKey, 16),
+            value: gaSafe(label, 64),
+          }));
           // Update the summary shown in the collapsed header
           const chosenEl = document.getElementById(`${stateKey}-chosen`);
           if (chosenEl) chosenEl.textContent = label;
@@ -541,6 +664,10 @@
         moreBtn.className = 'opt opt-more';
         moreBtn.textContent = `+${hidden.length} more`;
         moreBtn.onclick = () => {
+          trackEvent('selection_more_opened', {
+            field: gaSafe(stateKey, 16),
+            hidden_count: hidden.length,
+          });
           moreBtn.remove();
           hidden.forEach(label => grid.appendChild(renderBtn(label)));
         };
@@ -833,6 +960,10 @@
         MUS.gain.gain.setTargetAtTime(MUS.muted ? 0 : MUSIC_VOL, MUS.ctx.currentTime, 0.6);
       }
       if (MUS.ready) setMusicBtn(MUS.muted ? 'off' : 'on');
+      trackEvent('music_toggled', {
+        muted: Number(MUS.muted),
+        music_ready: Number(MUS.ready),
+      });
     }
 
     // Fetch + decode one music clip from Lambda
@@ -863,6 +994,7 @@
       stopMusic();
       MUS.loading = true;
       setMusicBtn('loading');
+      trackEvent('music_generation_started', gaStoryParams());
 
       try {
         const firstBuf = await fetchMusicClip();
@@ -879,6 +1011,7 @@
 
         // Start looping — first iteration's fade-in handles the initial ramp-up
         scheduleLoopIteration(0, MUS.ctx.currentTime);
+        trackEvent('music_generation_succeeded', gaStoryParams({ clips_loaded: 1 }));
 
         // Fetch 2 more clips in parallel; they slot into rotation as they arrive
         fetchExtraClips();
@@ -886,13 +1019,19 @@
         console.warn('Background music unavailable:', err.message);
         MUS.loading = false;
         setMusicBtn('hidden');
+        trackEvent('music_generation_failed', gaStoryParams({
+          error_code: gaErrorCode(err),
+          error_message: gaSafe(err?.message || err),
+        }));
       }
     }
 
     /* ─── STORY GENERATION ─────────────────────────────────── */
     async function beginStory() {
+      trackEvent('begin_story_clicked', gaStoryParams());
       if (!S.lambdaUrl || S.lambdaUrl === LAMBDA_PLACEHOLDER) {
         document.getElementById('settings-overlay').classList.remove('hidden');
+        trackEvent('begin_story_blocked', { reason: 'lambda_missing' });
         return;
       }
       applyTheme(S.genre);
@@ -904,7 +1043,11 @@
       // Check for existing saved story
       const existing = loadStoredStory();
       if (existing?.pages) {
-        if (confirm('A saved story exists for this combination.\n\nContinue where you left off?')) {
+        const shouldResume = confirm('A saved story exists for this combination.\n\nContinue where you left off?');
+        trackEvent('story_resume_prompted', gaStoryParams({
+          resumed: Number(shouldResume),
+        }));
+        if (shouldResume) {
           S.story = { pages: existing.pages };
           const prog = loadProgress();
           S.currentPageId = prog?.currentPage || 'page_1';
@@ -912,11 +1055,16 @@
           showScreen('game');
           renderPage(S.currentPageId);
           startBackgroundMusic(); // fire-and-forget
+          trackEvent('story_resumed', gaStoryParams({
+            page_id: gaSafe(S.currentPageId, 24),
+            prior_choices: S.choicesMade.length,
+          }));
           return;
         } else {
           localStorage.removeItem(storyKey());
           localStorage.removeItem(progressKey());
           S.imageCache = {};
+          trackEvent('saved_story_discarded', gaStoryParams());
         }
       }
 
@@ -928,6 +1076,8 @@
       startBackgroundMusic(); // fire-and-forget
 
       try {
+        A.storyStartedAt = performance.now();
+        trackEvent('story_generation_started', gaStoryParams());
         const result = await callLambda({ action: 'generateStory', genre: S.genre, era: S.era, archetype: S.archetype });
         stopTimer();
         if (!result.success) throw new Error(result.error || 'Story generation failed.');
@@ -937,9 +1087,18 @@
         saveStory(result.story); // saves story without image data
         showScreen('game');
         renderPage('page_1');
+        trackEvent('story_generation_succeeded', gaStoryParams({
+          duration_ms: Math.round(performance.now() - A.storyStartedAt),
+          page_count: Object.keys(result.story?.pages || {}).length,
+        }));
       } catch(err) {
         stopTimer();
         showLoadError(err.message);
+        trackEvent('story_generation_failed', gaStoryParams({
+          duration_ms: A.storyStartedAt ? Math.round(performance.now() - A.storyStartedAt) : 0,
+          error_code: gaErrorCode(err),
+          error_message: gaSafe(err?.message || err),
+        }));
       }
     }
 
@@ -964,6 +1123,7 @@
           <button class="btn-primary" onclick="showScreen('setup')">Back to Setup</button>
         </div>
       `;
+      trackEvent('loading_error_shown', { error_message: gaSafe(msg) });
     }
     function startTimer() {
       let s = 0;
@@ -992,6 +1152,13 @@
       if (!page) { console.error('Page not found:', pageId); return; }
       S.currentPageId = pageId;
       saveProgress();
+      const meta = gaPageMeta(pageId);
+      trackEvent('story_page_viewed', gaStoryParams({
+        page_id: gaSafe(pageId, 24),
+        beat: meta.beat,
+        path: meta.path,
+        choice_count: (page.choices || []).length,
+      }));
 
       // Story text (fade transition)
       const textEl = document.getElementById('story-text');
@@ -1012,16 +1179,17 @@
       // Show image if cached in memory; otherwise generate as part of this page render
       const cached = getCachedImage(pageId);
       if (cached) {
-        displayImage(cached);
+        trackEvent('image_cache_hit', gaStoryParams({ page_id: gaSafe(pageId, 24) }));
+        displayImage(cached, pageId, 'cache');
       } else {
-        loadImage(pageId, page).catch(() => {});
+        loadImage(pageId, page, 'current').catch(() => {});
       }
 
       // While the user reads this page, generate images for the next pages in the background
       (page.choices || []).forEach(c => {
         if (c.nextPage && !getCachedImage(c.nextPage) && !pending.has(c.nextPage)) {
           const nextPage = S.story?.pages?.[c.nextPage];
-          if (nextPage) loadImage(c.nextPage, nextPage).catch(() => {});
+          if (nextPage) loadImage(c.nextPage, nextPage, 'prefetch').catch(() => {});
         }
       });
     }
@@ -1060,6 +1228,12 @@
 
     function makeChoice(nextPageId, outcome) {
       if (!nextPageId) return;
+      trackEvent('story_choice_made', gaStoryParams({
+        from_page: gaSafe(S.currentPageId, 24),
+        to_page: gaSafe(nextPageId, 24),
+        outcome: gaSafe(outcome || 'unknown', 24),
+        choice_depth: S.choicesMade.length + 1,
+      }));
       S.choicesMade.push({ from: S.currentPageId, to: nextPageId, outcome });
       renderPage(nextPageId);
     }
@@ -1093,16 +1267,29 @@
       document.querySelectorAll('input[name="image-mode"]').forEach(r => { r.checked = r.value === S.imageMode; });
     }
     function setImageMode(mode) {
+      const prev = S.imageMode;
       S.imageMode = mode;
       localStorage.setItem('visualnovel_image_mode', mode);
+      if (prev !== mode) {
+        trackEvent('image_mode_changed', {
+          from_mode: gaSafe(prev, 16),
+          to_mode: gaSafe(mode, 16),
+        });
+      }
     }
 
     /* ─── IMAGE LOADING ────────────────────────────────────── */
-    async function loadImage(pageId, page) {
+    async function loadImage(pageId, page, source = 'current') {
       if (!page?.imagePrompt || pending.has(pageId) || getCachedImage(pageId)) return;
       pending.add(pageId);
+      trackEvent('image_request_started', gaStoryParams({
+        page_id: gaSafe(pageId, 24),
+        source: gaSafe(source, 16),
+      }));
       try {
         let data;
+        let provider = S.imageMode === 'terrain' ? 'terrain' : 'lambda';
+        let fallbackUsed = 0;
         if (S.imageMode === 'terrain') {
           data = { type: 'svg', data: generateTerrainSvg(S.genre, page.imagePrompt) };
         } else {
@@ -1113,22 +1300,49 @@
             } else {
               console.warn('Image gen failed, using terrain fallback:', result.error);
               data = { type: 'svg', data: generateTerrainSvg(S.genre, page.imagePrompt) };
+              provider = 'terrain';
+              fallbackUsed = 1;
+              trackEvent('image_request_fallback', gaStoryParams({
+                page_id: gaSafe(pageId, 24),
+                source: gaSafe(source, 16),
+                reason: gaSafe(result.error || 'lambda_unsuccessful'),
+              }));
             }
           } catch (lambdaErr) {
             console.warn('Image gen failed, using terrain fallback:', lambdaErr.message);
             data = { type: 'svg', data: generateTerrainSvg(S.genre, page.imagePrompt) };
+            provider = 'terrain';
+            fallbackUsed = 1;
+            trackEvent('image_request_fallback', gaStoryParams({
+              page_id: gaSafe(pageId, 24),
+              source: gaSafe(source, 16),
+              reason: gaErrorCode(lambdaErr),
+            }));
           }
         }
         cacheImage(pageId, data);
-        if (S.currentPageId === pageId) displayImage(data);
+        trackEvent('image_request_completed', gaStoryParams({
+          page_id: gaSafe(pageId, 24),
+          source: gaSafe(source, 16),
+          image_type: gaSafe(data?.type || 'unknown', 16),
+          provider: gaSafe(provider, 16),
+          fallback_used: fallbackUsed,
+        }));
+        if (S.currentPageId === pageId) displayImage(data, pageId, source);
       } catch(e) {
         console.warn('Image gen failed:', pageId, e.message);
+        trackEvent('image_request_failed', gaStoryParams({
+          page_id: gaSafe(pageId, 24),
+          source: gaSafe(source, 16),
+          error_code: gaErrorCode(e),
+          error_message: gaSafe(e?.message || e),
+        }));
       } finally {
         pending.delete(pageId);
       }
     }
 
-    function displayImage(imgData) {
+    function displayImage(imgData, pageId = S.currentPageId, source = 'current') {
       if (!imgData) return;
       const ph  = document.getElementById('img-placeholder');
       const img = document.getElementById('game-img');
@@ -1144,6 +1358,11 @@
           img.classList.remove('cinematic-in');
           void img.offsetWidth; // restart animation class reliably
           img.classList.add('cinematic-in');
+          trackEvent('image_displayed', gaStoryParams({
+            page_id: gaSafe(pageId, 24),
+            source: gaSafe(source, 16),
+            image_type: 'image',
+          }));
         };
         img.onload = reveal;
         img.src = `data:${imgData.mimeType};base64,${imgData.data}`;
@@ -1161,6 +1380,11 @@
         svg.classList.remove('cinematic-in');
         void svg.offsetWidth; // restart animation class reliably
         svg.classList.add('cinematic-in');
+        trackEvent('image_displayed', gaStoryParams({
+          page_id: gaSafe(pageId, 24),
+          source: gaSafe(source, 16),
+          image_type: 'svg',
+        }));
       }
     }
 
@@ -1186,6 +1410,11 @@
         sigil.textContent = '✦';
       }
       showScreen('ending');
+      trackEvent('ending_viewed', gaStoryParams({
+        ending_type: gaSafe(type, 16),
+        total_choices: S.choicesMade.length,
+        final_page: gaSafe(S.currentPageId, 24),
+      }));
     }
 
     function playAgain() {
@@ -1197,9 +1426,13 @@
       renderPage('page_1');
       // Restart music if it stopped or wasn't ready
       if (!MUS.ready && !MUS.loading) startBackgroundMusic();
+      trackEvent('play_again_clicked', gaStoryParams());
     }
 
     function newStory() {
+      trackEvent('new_story_clicked', gaStoryParams({
+        prior_choices: S.choicesMade.length,
+      }));
       // Fade out music first, then clear all data and go to setup
       const FADE_MS = 800;
       if (MUS.gain && MUS.ctx) {
@@ -1251,8 +1484,25 @@
 
       initLambdaUrl();
       initImageMode();
+      initAnalytics();
       applyScreenTexture('noir'); // default theme
       showScreen('setup');
+
+      trackEvent('app_ready', {
+        lambda_configured: Number(Boolean(S.lambdaUrl && S.lambdaUrl !== LAMBDA_PLACEHOLDER)),
+      });
+
+      window.addEventListener('error', evt => {
+        trackEvent('client_error', {
+          message: gaSafe(evt?.message || 'unknown'),
+          file: gaSafe(evt?.filename || ''),
+          line: Number(evt?.lineno || 0),
+        });
+      });
+      window.addEventListener('unhandledrejection', evt => {
+        const reason = evt?.reason?.message || evt?.reason || 'unknown';
+        trackEvent('unhandled_rejection', { message: gaSafe(reason) });
+      });
     }
 
     init();
