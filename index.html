@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="images/octopus.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Lora:ital,wght@0,400;0,500;1,400;1,500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Lora:ital,wght@0,400;0,500;1,400;1,500&family=Rajdhani:wght@500;600;700&family=Teko:wght@500;600&display=swap">
   <link rel="stylesheet" href="src/style.css">
 </head>
 
@@ -57,7 +57,7 @@
   </div>
 
   <!-- ─── INFO BUTTON ─── -->
-  <button class="info-btn" onclick="toggleInfo()" title="About Fateweaver">ℹ</button>
+  <button class="info-btn" onclick="toggleInfo()" title="About Fateweaver"><span class="info-btn-icon" aria-hidden="true">ℹ</span></button>
 
   <!-- ─── MUSIC BUTTON ─── -->
   <button id="music-btn" class="music-btn mus-hidden" onclick="toggleMusicMute()" title="Toggle music" aria-label="Toggle background music">♩</button>
@@ -81,57 +81,59 @@
         <p class="game-subtitle">An AI-Woven Visual Novel</p>
       </div>
 
-      <!-- Step 1: Genre (always visible) -->
-      <div id="genre-section" class="setup-section">
-        <div class="step-header">
-          <span class="step-num">I</span>
-          <span class="step-name">Choose Your Genre</span>
-          <span class="step-chosen" id="genre-chosen"></span>
-          <span class="step-change" aria-hidden="true">↩</span>
-        </div>
-        <div class="accordion-body">
-          <div class="accordion-inner">
-            <div class="option-grid" id="genre-grid"></div>
+      <div class="setup-console">
+        <!-- Step 1: Genre (always visible) -->
+        <div id="genre-section" class="setup-section">
+          <div class="step-header">
+            <span class="step-num">I</span>
+            <span class="step-name">Choose Your Genre</span>
+            <span class="step-chosen" id="genre-chosen"></span>
+            <span class="step-change" aria-hidden="true">↩</span>
+          </div>
+          <div class="accordion-body">
+            <div class="accordion-inner">
+              <div class="option-grid" id="genre-grid"></div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Step 2: Era (revealed after genre) -->
-      <div id="era-section" class="setup-section locked">
-        <div class="step-header">
-          <span class="step-num">II</span>
-          <span class="step-name">Choose Your Era</span>
-          <span class="step-chosen" id="era-chosen"></span>
-          <span class="step-change" aria-hidden="true">↩</span>
-        </div>
-        <div class="accordion-body">
-          <div class="accordion-inner">
-            <div class="option-grid" id="era-grid"></div>
+        <!-- Step 2: Era (revealed after genre) -->
+        <div id="era-section" class="setup-section locked">
+          <div class="step-header">
+            <span class="step-num">II</span>
+            <span class="step-name">Choose Your Era</span>
+            <span class="step-chosen" id="era-chosen"></span>
+            <span class="step-change" aria-hidden="true">↩</span>
+          </div>
+          <div class="accordion-body">
+            <div class="accordion-inner">
+              <div class="option-grid" id="era-grid"></div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Step 3: Archetype (revealed after era) -->
-      <div id="archetype-section" class="setup-section locked">
-        <div class="step-header">
-          <span class="step-num">III</span>
-          <span class="step-name">Choose Your Archetype</span>
-          <span class="step-chosen" id="archetype-chosen"></span>
-          <span class="step-change" aria-hidden="true">↩</span>
-        </div>
-        <div class="accordion-body">
-          <div class="accordion-inner">
-            <div class="option-grid" id="archetype-grid"></div>
+        <!-- Step 3: Archetype (revealed after era) -->
+        <div id="archetype-section" class="setup-section locked">
+          <div class="step-header">
+            <span class="step-num">III</span>
+            <span class="step-name">Choose Your Archetype</span>
+            <span class="step-chosen" id="archetype-chosen"></span>
+            <span class="step-change" aria-hidden="true">↩</span>
+          </div>
+          <div class="accordion-body">
+            <div class="accordion-inner">
+              <div class="option-grid" id="archetype-grid"></div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Begin (revealed after archetype) -->
-      <div id="begin-btn-wrap" class="begin-wrap locked">
-        <button id="begin-btn" class="begin-btn" onclick="beginStory()">
-          <span class="begin-label">Begin Story</span>
-          <span class="begin-arrow">↳</span>
-        </button>
+        <!-- Begin (revealed after archetype) -->
+        <div id="begin-btn-wrap" class="begin-wrap locked">
+          <button id="begin-btn" class="begin-btn" onclick="beginStory()">
+            <span class="begin-label">Begin Story</span>
+            <span class="begin-arrow">↳</span>
+          </button>
+        </div>
       </div>
 
     </div>
@@ -143,11 +145,35 @@
   <div id="screen-loading" class="screen hidden">
     <div class="screen-bg" id="loading-bg" aria-hidden="true"></div>
     <div class="loading-wrap" id="loading-wrap">
+      <div class="loading-atmo" aria-hidden="true">
+        <span class="loading-particle" style="--x:10%;--size:3px;--dur:14s;--delay:-2s;"></span>
+        <span class="loading-particle" style="--x:46%;--size:2px;--dur:12s;--delay:-7s;"></span>
+        <span class="loading-particle" style="--x:80%;--size:3px;--dur:16s;--delay:-4s;"></span>
+      </div>
       <div class="loading-sigil">✦</div>
-      <h2 class="loading-headline">Weaving your fate…</h2>
-      <p class="loading-sub" id="loading-sub">Your story is being woven across 8 beats.</p>
-      <div class="loading-bar-wrap"><div class="loading-bar-fill"></div></div>
-      <div class="loading-timer" id="loading-timer">0s</div>
+      <p class="loading-phase" id="loading-phase">Booting Fate Engine</p>
+      <h2 class="loading-headline"><span id="loading-verb">Weaving</span> your fate</h2>
+      <p class="loading-sub" id="loading-sub">Your story is being woven across 8 cinematic beats. Most runs finish in under a minute.</p>
+      <div class="loading-progress">
+        <div class="loading-bar-wrap" id="loading-bar" role="progressbar" aria-label="Story generation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="loading-bar-fill" id="loading-bar-fill"></div>
+        </div>
+        <div class="loading-metrics">
+          <span class="loading-percent" id="loading-percent">0%</span>
+          <span class="loading-timer" id="loading-timer">00:00</span>
+        </div>
+      </div>
+      <ol class="loading-stages" id="loading-stages">
+        <li class="loading-stage active"><span class="loading-stage-code">01</span><span class="loading-stage-label">Booting Fate Engine</span></li>
+        <li class="loading-stage"><span class="loading-stage-code">02</span><span class="loading-stage-label">Forging Protagonist Arc</span></li>
+        <li class="loading-stage"><span class="loading-stage-code">03</span><span class="loading-stage-label">Simulating Conflict Web</span></li>
+        <li class="loading-stage"><span class="loading-stage-code">04</span><span class="loading-stage-label">Branching Decision Paths</span></li>
+        <li class="loading-stage"><span class="loading-stage-code">05</span><span class="loading-stage-label">Polishing Final Outcomes</span></li>
+      </ol>
+      <p class="loading-intel">
+        <span class="loading-intel-tag">Director Feed</span>
+        <span class="loading-intel-text" id="loading-intel-text">Stabilizing narrative systems...</span>
+      </p>
     </div>
   </div>
 
@@ -165,6 +191,22 @@
         </div>
         <img id="game-img" class="game-img hidden" alt="Scene">
         <div id="game-svg" class="game-svg hidden"></div>
+      </div>
+
+      <!-- Tactical HUD -->
+      <div class="game-hud" aria-live="polite">
+        <div class="hud-panel hud-panel-track">
+          <div class="hud-loadout hud-panel-header">
+            <span class="hud-chip" id="hud-genre">Genre</span>
+            <span class="hud-chip" id="hud-era">Era</span>
+            <span class="hud-chip" id="hud-archetype">Archetype</span>
+          </div>
+          <div class="hud-kicker">
+            <span>Fate Vector</span>
+            <span class="hud-value hud-kicker-value" id="hud-path-label">—</span>
+          </div>
+          <div id="story-circle" class="story-circle" aria-label="Story beat progress"></div>
+        </div>
       </div>
 
       <!-- Story text + choices overlay at bottom -->

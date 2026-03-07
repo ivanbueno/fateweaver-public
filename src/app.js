@@ -58,6 +58,56 @@
     ];
     const BEAT_NAMES = ['You', 'Need', 'Go', 'Search', 'Find', 'Pay', 'Return', 'Change'];
     const BEAT_ICONS = ['◎', '✦', '➤', '⌕', '◇', '✕', '↺', '✧'];
+    const ROMAN_BEATS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+    const ARCHETYPE_ROUTE_PREFIX = {
+      'The Hero':        "Champion's",   'The Rebel':       "Rebel's",
+      'The Outlaw':      "Outlaw's",     'The Explorer':    "Explorer's",
+      'The Survivor':    "Survivor's",   'The Everyman':    "Wanderer's",
+      'The Lover':       "Lover's",      'The Caregiver':   "Keeper's",
+      'The Ruler':       "Sovereign's",  'The Sage':        "Sage's",
+      'The Magician':    "Magician's",   'The Detective':   "Detective's",
+      'The Huntress':    "Hunter's",     'The Sorceress':   "Sorceress's",
+      'The Oracle':      "Oracle's",     'The Strategist':  "Strategist's",
+      'The Soldier':     "Soldier's",    'The Ronin':       "Ronin's",
+      'The Queen':       "Queen's",      'The Empress':     "Empress's",
+      'The Valkyrie':    "Valkyrie's",   'The Priestess':   "Priestess's",
+      'The Creator':     "Maker's",      'The Hacker':      "Hacker's",
+      'The Innocent':    "Innocent's",   'The Jester':      "Fool's",
+      'The Drifter':     "Drifter's",    'The Artist':      "Artist's",
+      'The Aristocrat':  "Noble's",      'The Pilot':       "Pilot's",
+    };
+    const GENRE_PATH_OUTCOMES = {
+      'High Fantasy':               { good: 'Ascent',       neutral: 'Trial',       bad: 'Ruin'         },
+      'Romantic Drama':             { good: 'Union',        neutral: 'Drift',       bad: 'Heartbreak'   },
+      'Superhero Saga':             { good: 'Rise',         neutral: 'Sacrifice',   bad: 'Fall'         },
+      'Cyberpunk':                  { good: 'Override',     neutral: 'Static',      bad: 'Blackout'     },
+      'Space Opera':                { good: 'Odyssey',      neutral: 'Crossroads',  bad: 'Void'         },
+      'Detective Thriller':         { good: 'Truth',        neutral: 'Cold Case',   bad: 'Abyss'        },
+      'Historical Drama':           { good: 'Legacy',       neutral: 'Passage',     bad: 'Downfall'     },
+      'Survival Horror':            { good: 'Deliverance',  neutral: 'Survival',    bad: 'Descent'      },
+      'Noir Mystery':               { good: 'Resolution',   neutral: 'Shadow',      bad: 'Oblivion'     },
+      'Urban Fantasy':              { good: 'Awakening',    neutral: 'Limbo',       bad: 'Unraveling'   },
+      'Gothic Horror':              { good: 'Redemption',   neutral: 'Dusk',        bad: 'Ruin'         },
+      'Heist':                      { good: 'Score',        neutral: 'Near Miss',   bad: 'Exposure'     },
+      'Espionage Thriller':         { good: 'Exfil',        neutral: 'Cover',       bad: 'Blown'        },
+      'Post-Apocalyptic':           { good: 'Renewal',      neutral: 'Wasteland',   bad: 'Extinction'   },
+      'Dark Fantasy':               { good: 'Restoration',  neutral: 'Twilight',    bad: 'Corruption'   },
+      'Forbidden Romance':          { good: 'Surrender',    neutral: 'Longing',     bad: 'Loss'         },
+      'Supernatural Mystery':       { good: 'Revelation',   neutral: 'Veil',        bad: 'Haunting'     },
+      'Time Travel Adventure':      { good: 'Restoration',  neutral: 'Paradox',     bad: 'Erasure'      },
+      'Steampunk Intrigue':         { good: 'Invention',    neutral: 'Steam',       bad: 'Collapse'     },
+      'Mythic Adventure':           { good: 'Glory',        neutral: 'Trial',       bad: 'Tragedy'      },
+      'Political Thriller':         { good: 'Ascension',    neutral: 'Stalemate',   bad: 'Conspiracy'   },
+      'Samurai Epic':               { good: 'Honor',        neutral: 'Duty',        bad: 'Dishonor'     },
+      'Western Frontier':           { good: 'Redemption',   neutral: 'Trail',       bad: 'Reckoning'    },
+      'Military Sci-Fi':            { good: 'Victory',      neutral: 'Standoff',    bad: 'Defeat'       },
+      'Occult Mystery':             { good: 'Enlightenment',neutral: 'Purgatory',   bad: 'Damnation'    },
+      'Resistance':                 { good: 'Liberation',   neutral: 'Standoff',    bad: 'Suppression'  },
+      'Monster Hunter Adventure':   { good: 'Triumph',      neutral: 'Hunt',        bad: 'Curse'        },
+      'Court Intrigue':             { good: 'Crown',        neutral: 'Gambit',      bad: 'Exile'        },
+      'Lost Civilization Adventure':{ good: 'Discovery',    neutral: 'Ruins',       bad: 'Burial'       },
+      'School Drama':               { good: 'Graduation',   neutral: 'Transfer',    bad: 'Expulsion'    },
+    };
     const LOADING_ARCHETYPE_OPENERS = {
       'The Detective': 'The case file is being stitched',
       'The Aristocrat': 'The courtly web is being spun',
@@ -477,11 +527,47 @@
     }
     let timerInterval = null;
     let verbInterval  = null;
+    let intelInterval = null;
     let verbIdx       = 0;
+    let intelIdx      = 0;
+    let loadingStartedAt = 0;
+    let loadingDisplayPercent = 0;
+    let loadingIntelLines = [];
     const LOADING_VERBS = [
       'Weaving', 'Spinning', 'Conjuring', 'Shaping', 'Forging',
       'Summoning', 'Unfolding', 'Scribing', 'Threading', 'Binding',
       'Casting', 'Dreaming', 'Charting', 'Braiding', 'Kindling',
+    ];
+    const LOADING_PHASES = [
+      { code: '01', progress: 0,  label: 'Booting Fate Engine' },
+      { code: '02', progress: 20, label: 'Forging Protagonist Arc' },
+      { code: '03', progress: 40, label: 'Simulating Conflict Web' },
+      { code: '04', progress: 62, label: 'Branching Decision Paths' },
+      { code: '05', progress: 82, label: 'Polishing Final Outcomes' },
+    ];
+    const LOADING_CURVE = [
+      [0, 0],
+      [3, 18],
+      [8, 44],
+      [15, 67],
+      [25, 81],
+      [40, 90],
+      [60, 95],
+      [90, 97],
+    ];
+    const LOADING_PARTICLES = [
+      { x: 6,  size: 2, dur: 10.8, delay: -1.2 },
+      { x: 12, size: 3, dur: 14.5, delay: -7.4 },
+      { x: 20, size: 2, dur: 12.8, delay: -4.6 },
+      { x: 29, size: 4, dur: 17.2, delay: -9.1 },
+      { x: 36, size: 2, dur: 11.4, delay: -2.3 },
+      { x: 45, size: 3, dur: 15.9, delay: -6.2 },
+      { x: 54, size: 2, dur: 12.1, delay: -10.0 },
+      { x: 63, size: 4, dur: 18.1, delay: -5.1 },
+      { x: 73, size: 3, dur: 13.6, delay: -3.8 },
+      { x: 82, size: 2, dur: 16.8, delay: -8.7 },
+      { x: 90, size: 3, dur: 14.1, delay: -11.6 },
+      { x: 95, size: 2, dur: 12.9, delay: -0.7 },
     ];
     const pending = new Set(); // pages with in-flight image requests
 
@@ -675,8 +761,24 @@
       }
     }
 
+    function setupSelectionCount() {
+      return Number(Boolean(S.genre)) + Number(Boolean(S.era)) + Number(Boolean(S.archetype));
+    }
+
     function checkReady() {
       document.getElementById('begin-btn').disabled = !(S.genre && S.era && S.archetype);
+    }
+
+    function updateSetupHud() {
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
+      setText('hud-genre', S.genre || 'Genre');
+      setText('hud-era', S.era || 'Era');
+      setText('hud-archetype', S.archetype || 'Archetype');
+      setText('hud-path-label', (S.genre && S.archetype) ? routeLabel(S.genre, S.archetype, 'good') : '—');
+      renderCircle(1);
     }
 
     /* Collapse an open accordion section */
@@ -711,6 +813,7 @@
         const el = document.getElementById(`${k}-chosen`);
         if (el) el.textContent = '';
       });
+      updateSetupHud();
       const setupEl = document.getElementById('screen-setup');
       if (setupEl) setupEl.scrollTop = 0;
     }
@@ -1079,8 +1182,9 @@
         A.storyStartedAt = performance.now();
         trackEvent('story_generation_started', gaStoryParams());
         const result = await callLambda({ action: 'generateStory', genre: S.genre, era: S.era, archetype: S.archetype });
-        stopTimer();
         if (!result.success) throw new Error(result.error || 'Story generation failed.');
+        stopTimer();
+        await completeLoading();
         S.story         = result.story;
         S.currentPageId = 'page_1';
         S.choicesMade   = [];
@@ -1104,17 +1208,126 @@
 
     function resetLoading() {
       const sub = loadingSubtitleForArchetype(S.archetype);
+      loadingIntelLines = loadingIntelForContext();
+      intelIdx = 0;
+      loadingDisplayPercent = 0;
+      const particles = LOADING_PARTICLES.map(p => (
+        `<span class="loading-particle" style="--x:${p.x}%;--size:${p.size}px;--dur:${p.dur}s;--delay:${p.delay}s;"></span>`
+      )).join('');
+      const stages = LOADING_PHASES.map((phase, idx) => `
+        <li class="loading-stage${idx === 0 ? ' active' : ''}" data-stage="${idx}">
+          <span class="loading-stage-code">${phase.code}</span>
+          <span class="loading-stage-label">${esc(phase.label)}</span>
+        </li>
+      `).join('');
       document.getElementById('loading-wrap').innerHTML = `
+        <div class="loading-atmo" aria-hidden="true">${particles}</div>
         <div class="loading-sigil">✦</div>
-        <h2 class="loading-headline"><span id="loading-verb">Weaving</span> your fate…</h2>
+        <p class="loading-phase" id="loading-phase">${esc(LOADING_PHASES[0].label)}</p>
+        <h2 class="loading-headline"><span id="loading-verb">Weaving</span> your fate</h2>
         <p class="loading-sub">${esc(sub)}</p>
-        <div class="loading-bar-wrap"><div class="loading-bar-fill"></div></div>
-        <div class="loading-timer" id="loading-timer">0s</div>
+        <div class="loading-progress">
+          <div class="loading-bar-wrap" id="loading-bar" role="progressbar" aria-label="Story generation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="loading-bar-fill" id="loading-bar-fill"></div>
+          </div>
+          <div class="loading-metrics">
+            <span class="loading-percent" id="loading-percent">0%</span>
+            <span class="loading-timer" id="loading-timer">00:00</span>
+          </div>
+        </div>
+        <ol class="loading-stages" id="loading-stages">${stages}</ol>
+        <p class="loading-intel">
+          <span class="loading-intel-tag">Director Feed</span>
+          <span class="loading-intel-text" id="loading-intel-text">${esc(loadingIntelLines[0] || 'Stabilizing narrative systems...')}</span>
+        </p>
       `;
+      renderLoadingProgress(0, 0);
     }
     function loadingSubtitleForArchetype(archetype) {
       const opener = LOADING_ARCHETYPE_OPENERS[archetype] || 'Your story is being woven';
-      return `${opener} across 8 beats. This may take 60 seconds... or else.`;
+      return `${opener} across 8 cinematic beats. Most runs finish in under a minute.`;
+    }
+    function loadingIntelForContext() {
+      const genre = S.genre || 'Unknown Genre';
+      const era = S.era || 'Unknown Era';
+      const archetype = S.archetype || 'Unknown Archetype';
+      return [
+        `Genre protocol locked: ${genre}.`,
+        `Timeline anchor synchronized to ${era}.`,
+        `Lead profile loaded: ${archetype}.`,
+        'Balancing emotional stakes across every beat.',
+        'Resolving branching consequences for the final act.',
+        'Calibrating pacing spikes for cinematic momentum.',
+        'Running continuity sweep before deployment.',
+      ];
+    }
+    function loadingTargetPercent(elapsedSec) {
+      for (let i = 1; i < LOADING_CURVE.length; i++) {
+        const [t0, p0] = LOADING_CURVE[i - 1];
+        const [t1, p1] = LOADING_CURVE[i];
+        if (elapsedSec <= t1) {
+          const span = t1 - t0 || 1;
+          const t = (elapsedSec - t0) / span;
+          return p0 + (p1 - p0) * t;
+        }
+      }
+      return LOADING_CURVE[LOADING_CURVE.length - 1][1];
+    }
+    function formatLoadTime(elapsedSec) {
+      const total = Math.max(0, Math.floor(elapsedSec));
+      const mm = String(Math.floor(total / 60)).padStart(2, '0');
+      const ss = String(total % 60).padStart(2, '0');
+      return `${mm}:${ss}`;
+    }
+    function activeLoadingPhase(percent) {
+      let active = LOADING_PHASES.length - 1;
+      for (let i = 0; i < LOADING_PHASES.length; i++) {
+        const next = LOADING_PHASES[i + 1];
+        if (!next || percent < next.progress) {
+          active = i;
+          break;
+        }
+      }
+      return active;
+    }
+    function renderLoadingProgress(percent, elapsedSec) {
+      const p = Math.max(0, Math.min(100, percent));
+      const rounded = Math.floor(p);
+
+      const bar = document.getElementById('loading-bar');
+      if (bar) bar.setAttribute('aria-valuenow', String(rounded));
+
+      const fill = document.getElementById('loading-bar-fill');
+      if (fill) fill.style.width = `${p.toFixed(1)}%`;
+
+      const percentEl = document.getElementById('loading-percent');
+      if (percentEl) percentEl.textContent = `${rounded}%`;
+
+      const timerEl = document.getElementById('loading-timer');
+      if (timerEl) timerEl.textContent = formatLoadTime(elapsedSec);
+
+      const phaseEl = document.getElementById('loading-phase');
+      const phaseIdx = activeLoadingPhase(p);
+      if (phaseEl) phaseEl.textContent = p >= 100 ? 'Deploying Story Session' : LOADING_PHASES[phaseIdx].label;
+
+      const stages = document.querySelectorAll('#loading-stages .loading-stage');
+      stages.forEach((stage, idx) => {
+        stage.classList.toggle('done', p >= 100 || idx < phaseIdx);
+        stage.classList.toggle('active', p < 100 && idx === phaseIdx);
+      });
+    }
+    async function completeLoading() {
+      const elapsed = loadingStartedAt ? (performance.now() - loadingStartedAt) / 1000 : 0;
+      loadingDisplayPercent = 100;
+      renderLoadingProgress(100, elapsed);
+
+      const verbEl = document.getElementById('loading-verb');
+      if (verbEl) verbEl.textContent = 'Deploying';
+
+      const intelEl = document.getElementById('loading-intel-text');
+      if (intelEl) intelEl.textContent = 'Lock confirmed. Entering story space.';
+
+      await new Promise(resolve => setTimeout(resolve, 420));
     }
     function showLoadError(msg) {
       document.getElementById('loading-wrap').innerHTML = `
@@ -1126,8 +1339,18 @@
       trackEvent('loading_error_shown', { error_message: gaSafe(msg) });
     }
     function startTimer() {
-      let s = 0;
-      timerInterval = setInterval(() => { s++; const el = document.getElementById('loading-timer'); if (el) el.textContent = `${s}s`; }, 1000);
+      loadingStartedAt = performance.now();
+      loadingDisplayPercent = 0;
+      renderLoadingProgress(0, 0);
+
+      timerInterval = setInterval(() => {
+        const elapsed = (performance.now() - loadingStartedAt) / 1000;
+        const target = loadingTargetPercent(elapsed);
+        loadingDisplayPercent += (target - loadingDisplayPercent) * 0.12;
+        loadingDisplayPercent = Math.min(99, Math.max(0, loadingDisplayPercent + 0.03));
+        renderLoadingProgress(loadingDisplayPercent, elapsed);
+      }, 120);
+
       // Verb cycling: fade out → swap → fade in
       verbIdx = 0;
       verbInterval = setInterval(() => {
@@ -1140,10 +1363,23 @@
           el.classList.remove('verb-fade');
         }, 350);
       }, 2200);
+
+      intelInterval = setInterval(() => {
+        if (loadingIntelLines.length <= 1) return;
+        const el = document.getElementById('loading-intel-text');
+        if (!el) return;
+        el.classList.add('intel-fade');
+        setTimeout(() => {
+          intelIdx = (intelIdx + 1) % loadingIntelLines.length;
+          el.textContent = loadingIntelLines[intelIdx];
+          el.classList.remove('intel-fade');
+        }, 240);
+      }, 3800);
     }
     function stopTimer() {
       clearInterval(timerInterval); timerInterval = null;
       clearInterval(verbInterval);  verbInterval  = null;
+      clearInterval(intelInterval); intelInterval = null;
     }
 
     /* ─── GAME: RENDER PAGE ────────────────────────────────── */
@@ -1159,6 +1395,7 @@
         path: meta.path,
         choice_count: (page.choices || []).length,
       }));
+      updateGameHud(meta);
 
       // Story text (fade transition)
       const textEl = document.getElementById('story-text');
@@ -1194,6 +1431,32 @@
       });
     }
 
+    function romanBeat(beat) {
+      return ROMAN_BEATS[beat - 1] || String(beat);
+    }
+
+    function routeLabel(genre, archetype, path) {
+      const prefix  = ARCHETYPE_ROUTE_PREFIX[archetype] || '';
+      const outcome = (GENRE_PATH_OUTCOMES[genre] || {})[path]
+                   || (GENRE_PATH_OUTCOMES[genre] || {}).good
+                   || path;
+      return prefix ? `${prefix} ${outcome}` : outcome;
+    }
+
+    function updateGameHud(meta) {
+      const fromMeta = Number(meta?.beat || 0);
+      const beat = Math.max(1, Math.min(BEAT_NAMES.length, fromMeta || (S.choicesMade.length + 1)));
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
+      setText('hud-path-label', routeLabel(S.genre, S.archetype, meta?.path || 'good'));
+      setText('hud-genre', S.genre || 'Genre');
+      setText('hud-era', S.era || 'Era');
+      setText('hud-archetype', S.archetype || 'Archetype');
+      renderCircle(beat);
+    }
+
     function shuffle(arr) {
       const a = arr.slice();
       for (let i = a.length - 1; i > 0; i--) {
@@ -1207,10 +1470,11 @@
       const container = document.getElementById('choices');
       container.innerHTML = '';
       if (page.choices && page.choices.length > 0) {
-        shuffle(page.choices).forEach(c => {
+        shuffle(page.choices).forEach((c, idx) => {
           const btn = document.createElement('button');
           btn.className = 'choice-btn';
-          btn.innerHTML = `<span class="choice-label">${esc(c.label)}</span><span class="choice-arrow">→</span>`;
+          btn.style.setProperty('--choice-delay', `${idx * 70}ms`);
+          btn.innerHTML = `<span class="choice-index">${idx + 1}</span><span class="choice-label">${esc(c.label)}</span><span class="choice-arrow">→</span>`;
           btn.onclick   = () => makeChoice(c.nextPage, c.outcome);
           container.appendChild(btn);
         });
@@ -1218,7 +1482,8 @@
         // Final page — show "See Fate" button
         const btn = document.createElement('button');
         btn.className = 'choice-btn ending-btn';
-        btn.innerHTML = `<span class="choice-label">✦ See Your Fate ✦</span>`;
+        btn.style.setProperty('--choice-delay', '0ms');
+        btn.innerHTML = `<span class="choice-index">✦</span><span class="choice-label">See Your Fate</span><span class="choice-arrow">→</span>`;
         btn.onclick   = () => showEnding(determineEnding(state_currentId()));
         container.appendChild(btn);
       }
@@ -1252,11 +1517,13 @@
     /* ─── STORY CIRCLE ─────────────────────────────────────── */
     function renderCircle(currentBeat) {
       const el = document.getElementById('story-circle');
+      if (!el) return;
+      const beat = Math.max(1, Math.min(BEAT_NAMES.length, Number(currentBeat) || 1));
       el.innerHTML = BEAT_NAMES.map((name, i) => {
         const b   = i + 1;
         const icon = BEAT_ICONS[i] || '•';
-        const cls = b < currentBeat ? 'bs done' : b === currentBeat ? 'bs active' : 'bs';
-        return `<div class="${cls}" title="Beat ${b}: ${name}"><div class="bs-bar"></div><div class="bs-name">${icon}</div></div>`;
+        const cls = b < beat ? 'bs done' : b === beat ? 'bs active' : 'bs';
+        return `<div class="${cls}" title="Beat ${b}: ${name}"><div class="bs-bar"></div><div class="bs-step">${b}</div><div class="bs-name">${icon}</div></div>`;
       }).join('');
     }
 
@@ -1453,6 +1720,7 @@
         document.documentElement.style.setProperty('--font-body', "'Lora', Georgia, serif");
         // Re-lock sequential setup sections
         resetSetupReveal();
+        updateSetupHud();
         showScreen('setup');
         // Ensure setup/home screen starts at the top when starting fresh
         const setupScreen = document.getElementById('screen-setup');
@@ -1487,6 +1755,7 @@
       initAnalytics();
       applyScreenTexture('noir'); // default theme
       showScreen('setup');
+      checkReady();
 
       trackEvent('app_ready', {
         lambda_configured: Number(Boolean(S.lambdaUrl && S.lambdaUrl !== LAMBDA_PLACEHOLDER)),
