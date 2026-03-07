@@ -365,9 +365,12 @@
 
     // ─── ANALYTICS (Google Analytics 4) ───────────────────────
     const GA_ID_RE = /^G-[A-Z0-9]+$/;
+    const GA_EVENT_NAME_RE = /^[a-z][a-z0-9_]{0,39}$/;
+    const GA_PARAM_KEY_RE = /^[a-z][a-z0-9_]{0,39}$/;
     const A = {
       enabled: false,
       lastScreen: null,
+      lastPagePath: null,
       sessionId: `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       storyStartedAt: 0,
     };
@@ -377,6 +380,49 @@
     function gaSafe(value, maxLen = 120) {
       if (value === null || value === undefined) return '';
       return String(value).slice(0, maxLen);
+    }
+
+    function gaNormalizeKey(value, fallback = 'param') {
+      const normalized = gaSafe(value, 40)
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .replace(/^[^a-z]+/, '');
+      return normalized || fallback;
+    }
+
+    function gaNormalizeEventName(name) {
+      const normalized = gaNormalizeKey(name, 'event');
+      return GA_EVENT_NAME_RE.test(normalized) ? normalized : 'event';
+    }
+
+    function gaNormalizeParams(params = {}, maxParams = 25) {
+      const out = {};
+      let count = 0;
+      for (const [rawKey, rawValue] of Object.entries(params || {})) {
+        if (count >= maxParams) break;
+        if (rawValue === null || rawValue === undefined) continue;
+        const key = gaNormalizeKey(rawKey, '');
+        if (!key || !GA_PARAM_KEY_RE.test(key) || Object.prototype.hasOwnProperty.call(out, key)) continue;
+
+        if (typeof rawValue === 'number') {
+          if (!Number.isFinite(rawValue)) continue;
+          out[key] = rawValue;
+        } else if (typeof rawValue === 'boolean') {
+          out[key] = Number(rawValue);
+        } else if (typeof rawValue === 'string') {
+          out[key] = gaSafe(rawValue, 100);
+        } else {
+          try {
+            out[key] = gaSafe(JSON.stringify(rawValue), 100);
+          } catch {
+            out[key] = gaSafe(String(rawValue), 100);
+          }
+        }
+        count += 1;
+      }
+      return out;
     }
 
     function gaErrorCode(err) {
@@ -409,15 +455,34 @@
 
     function trackEvent(name, params = {}) {
       if (!A.enabled || typeof window.gtag !== 'function') return;
-      window.gtag('event', name, { session_id: A.sessionId, ...params });
+      const eventName = gaNormalizeEventName(name);
+      const payload = gaNormalizeParams({ session_id: A.sessionId, ...params });
+      window.gtag('event', eventName, payload);
+    }
+
+    function trackPageView(path, title, params = {}) {
+      if (!A.enabled || typeof window.gtag !== 'function') return;
+      const rawPath = gaSafe(path || '/', 120);
+      const pagePath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+      if (A.lastPagePath === pagePath) return;
+      A.lastPagePath = pagePath;
+      const pageLocation = `${window.location.origin}${pagePath}`;
+      const payload = gaNormalizeParams({
+        session_id: A.sessionId,
+        page_path: pagePath,
+        page_location: pageLocation,
+        page_title: gaSafe(title || document.title || 'Fateweaver', 80),
+        ...params,
+      });
+      window.gtag('event', 'page_view', payload);
     }
 
     function initAnalytics() {
       if (!GA_ID_RE.test(GA_MEASUREMENT_ID)) return;
-      if (document.getElementById('ga-gtag')) { A.enabled = true; return; }
-
       window.dataLayer = window.dataLayer || [];
       window.gtag = window.gtag || function gtag(){ window.dataLayer.push(arguments); };
+
+      if (document.getElementById('ga-gtag')) { A.enabled = true; return; }
 
       window.gtag('js', new Date());
       window.gtag('config', GA_MEASUREMENT_ID, { send_page_view: false, anonymize_ip: true });
@@ -764,7 +829,11 @@
       if (name === 'game') applyHudState();
       if (A.lastScreen !== name) {
         A.lastScreen = name;
-        trackEvent('screen_view', gaStoryParams({ screen_name: gaSafe(name, 24) }));
+        const safeScreen = gaSafe(name, 24);
+        trackEvent('screen_view', gaStoryParams({ screen_name: safeScreen }));
+        if (safeScreen !== 'game') {
+          trackPageView(`/${safeScreen}`, `Fateweaver - ${safeScreen}`, gaStoryParams({ screen_name: safeScreen }));
+        }
       }
     }
 
@@ -1697,10 +1766,18 @@
       S.currentPageId = pageId;
       saveProgress();
       const meta = gaPageMeta(pageId);
+      const safePageId = gaSafe(pageId, 24);
       trackEvent('story_page_viewed', gaStoryParams({
-        page_id: gaSafe(pageId, 24),
+        page_id: safePageId,
         beat: meta.beat,
         path: meta.path,
+        choice_count: (page.choices || []).length,
+      }));
+      trackPageView(`/story/${safePageId}`, `Fateweaver - ${resumeCheckpointLabel(pageId)}`, gaStoryParams({
+        screen_name: 'game',
+        page_id: safePageId,
+        beat: meta.beat,
+        story_path: meta.path,
         choice_count: (page.choices || []).length,
       }));
       updateGameHud(meta);
