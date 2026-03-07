@@ -177,7 +177,9 @@ body {
 .info-btn-icon {
   display: block;
   line-height: 1;
-
+  color: inherit;
+  font-family: Georgia, "Times New Roman", serif;
+  font-variant-emoji: text;
 }
 
 /* ─── MUSIC BUTTON ─── */
