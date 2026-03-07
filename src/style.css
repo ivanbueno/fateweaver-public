@@ -1349,18 +1349,6 @@ body {
   padding: 9rem 1rem 1rem;
   pointer-events: none;
 }
-.story-overlay::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% - 0.18rem);
-  width: min(960px, calc(100% - 2rem));
-  height: 1px;
-  transform: translateX(-50%);
-  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
-  opacity: 0.4;
-}
-
 .story-content {
   width: min(960px, 100%);
   padding: 1.05rem 1.2rem 1.2rem;

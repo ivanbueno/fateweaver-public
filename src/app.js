@@ -1715,16 +1715,46 @@
     }
 
     function endingShareText(type, report, copy) {
-      return [
-        `Fateweaver Ending: ${copy.badge}`,
-        copy.sub,
+      const pages = S.story?.pages || {};
+      const pageIds = [];
+      const pushId = id => {
+        if (!id || !pages[id]) return;
+        if (pageIds[pageIds.length - 1] === id) return;
+        pageIds.push(id);
+      };
+
+      pushId('page_1');
+      (S.choicesMade || []).forEach(choice => pushId(choice?.to));
+      pushId(S.currentPageId);
+
+      const lines = [
+        `Fateweaver Story: ${S.genre || 'Unknown'} | ${S.era || 'Unknown'} | ${S.archetype || 'Unknown'}`,
         `Route: ${report.route}`,
-        `Alignment: ${report.alignment}`,
-        `Legend Rating: ${String(report.score).padStart(3, '0')} (${report.rank})`,
-        `Decisions: ${report.decisions}`,
-        `Runtime: ${report.runtime}`,
-        `Loadout: ${S.genre || 'Unknown'} | ${S.era || 'Unknown'} | ${S.archetype || 'Unknown'}`,
-      ].join('\n');
+        `Ending: ${copy.badge}`,
+        '',
+      ];
+
+      if (!pageIds.length) {
+        lines.push('Story text is unavailable for this run.');
+        return lines.join('\n');
+      }
+
+      pageIds.forEach((pageId, idx) => {
+        const page = pages[pageId];
+        if (!page) return;
+        const beatNumber = Number(page.beat) || (idx + 1);
+        lines.push((page.text || '').trim());
+
+        const nextPageId = pageIds[idx + 1];
+        if (nextPageId && Array.isArray(page.choices)) {
+          const chosen = page.choices.find(choice => choice?.nextPage === nextPageId);
+          if (chosen?.label) lines.push(`\nChoice: ${chosen.label}`);
+        }
+
+        if (idx < pageIds.length - 1) lines.push('');
+      });
+
+      return lines.join('\n');
     }
 
     function syncEndingBackdrop(pageId) {
@@ -1784,7 +1814,7 @@
         clearTimeout(endingShareResetTid);
         endingShareResetTid = null;
       }
-      btn.textContent = '⧉ Copy Recap';
+      btn.textContent = '⧉ Copy Story';
       btn.classList.remove('copied');
     }
 
@@ -2001,26 +2031,26 @@
       const type = S.lastEndingType || determineEnding(S.currentPageId || '');
       const report = endingReport(type);
       const copy = endingCopyFor(type);
-      const recap = endingShareText(type, report, copy);
+      const story = endingShareText(type, report, copy);
       let copied = false;
 
       try {
         if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(recap);
+          await navigator.clipboard.writeText(story);
           copied = true;
         }
       } catch (_) {
         copied = false;
       }
 
-      if (!copied) window.prompt('Copy your ending recap:', recap);
+      if (!copied) window.prompt('Copy your story:', story);
 
       if (btn) {
         if (endingShareResetTid) clearTimeout(endingShareResetTid);
         btn.classList.add('copied');
-        btn.textContent = copied ? '✓ Recap Copied' : 'Recap Ready';
+        btn.textContent = copied ? '✓ Story Copied' : 'Story Ready';
         endingShareResetTid = setTimeout(() => {
-          btn.textContent = '⧉ Copy Recap';
+          btn.textContent = '⧉ Copy Story';
           btn.classList.remove('copied');
           endingShareResetTid = null;
         }, 2200);
