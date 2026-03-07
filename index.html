@@ -62,6 +62,9 @@
   <!-- ─── MUSIC BUTTON ─── -->
   <button id="music-btn" class="music-btn mus-hidden" onclick="toggleMusicMute()" title="Toggle music" aria-label="Toggle background music">♩</button>
 
+  <!-- ─── HUD BUTTON ─── -->
+  <button id="hud-btn" class="hud-btn hud-hidden" onclick="toggleHud()" title="Hide HUD" aria-label="Hide tactical HUD" aria-pressed="true">▣</button>
+
   <!-- ═══════════════════════════════════════
        SETUP SCREEN — Sequential reveal
   ═══════════════════════════════════════ -->
@@ -194,7 +197,7 @@
       </div>
 
       <!-- Tactical HUD -->
-      <div class="game-hud" aria-live="polite">
+      <div id="game-hud" class="game-hud" aria-live="polite">
         <div class="hud-panel hud-panel-track">
           <div class="hud-loadout hud-panel-header">
             <span class="hud-chip" id="hud-genre">Genre</span>

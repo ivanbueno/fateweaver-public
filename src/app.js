@@ -343,6 +343,8 @@
       choicesMade:   [],
       imageCache:    {},     // in-memory
       imageMode:     'lambda', // 'lambda' | 'terrain'
+      hudCollapsed:  false,
+      hudBeat:       1,
     };
 
     // ─── ANALYTICS (Google Analytics 4) ───────────────────────
@@ -631,6 +633,9 @@
       document.querySelectorAll('.screen').forEach(s => {
         s.id === `screen-${name}` ? s.classList.remove('hidden') : s.classList.add('hidden');
       });
+      const hudBtn = document.getElementById('hud-btn');
+      if (hudBtn) hudBtn.classList.toggle('hud-hidden', name !== 'game');
+      if (name === 'game') applyHudState();
       if (A.lastScreen !== name) {
         A.lastScreen = name;
         trackEvent('screen_view', gaStoryParams({ screen_name: gaSafe(name, 24) }));
@@ -697,6 +702,46 @@
       const wasOpen = !overlay.classList.contains('hidden');
       overlay.classList.add('hidden');
       if (wasOpen) trackEvent('info_toggled', { state: 'closed' });
+    }
+
+    function hudIconForBeat(beat) {
+      const idx = Math.max(1, Math.min(BEAT_ICONS.length, Number(beat) || 1)) - 1;
+      return BEAT_ICONS[idx] || '◎';
+    }
+
+    function setHudBtnState() {
+      const btn = document.getElementById('hud-btn');
+      if (!btn) return;
+      const collapsed = Boolean(S.hudCollapsed);
+      btn.textContent = hudIconForBeat(S.hudBeat);
+      btn.title = collapsed ? 'Show HUD' : 'Hide HUD';
+      btn.setAttribute('aria-label', collapsed ? 'Show tactical HUD' : 'Hide tactical HUD');
+      btn.setAttribute('aria-pressed', String(!collapsed));
+      btn.classList.toggle('is-collapsed', collapsed);
+    }
+
+    function applyHudState() {
+      const hud = document.getElementById('game-hud');
+      if (hud) {
+        hud.classList.toggle('is-collapsed', S.hudCollapsed);
+        hud.setAttribute('aria-hidden', S.hudCollapsed ? 'true' : 'false');
+      }
+      setHudBtnState();
+    }
+
+    function initHudState() {
+      const pref = localStorage.getItem('visualnovel_hud_collapsed');
+      S.hudCollapsed = pref === null ? true : pref === '1';
+      applyHudState();
+    }
+
+    function toggleHud() {
+      S.hudCollapsed = !S.hudCollapsed;
+      localStorage.setItem('visualnovel_hud_collapsed', S.hudCollapsed ? '1' : '0');
+      applyHudState();
+      trackEvent('hud_toggled', {
+        state: S.hudCollapsed ? 'collapsed' : 'expanded',
+      });
     }
 
     /* ─── SETUP SCREEN ─────────────────────────────────────── */
@@ -779,6 +824,8 @@
       setText('hud-archetype', S.archetype || 'Archetype');
       setText('hud-path-label', (S.genre && S.archetype) ? routeLabel(S.genre, S.archetype, 'good') : '—');
       renderCircle(1);
+      S.hudBeat = 1;
+      setHudBtnState();
     }
 
     /* Collapse an open accordion section */
@@ -1455,6 +1502,8 @@
       setText('hud-era', S.era || 'Era');
       setText('hud-archetype', S.archetype || 'Archetype');
       renderCircle(beat);
+      S.hudBeat = beat;
+      setHudBtnState();
     }
 
     function shuffle(arr) {
@@ -1752,6 +1801,7 @@
 
       initLambdaUrl();
       initImageMode();
+      initHudState();
       initAnalytics();
       applyScreenTexture('noir'); // default theme
       showScreen('setup');
