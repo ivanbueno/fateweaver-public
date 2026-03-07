@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fateweaver / AI Visual Novel</title>
+  <link rel="icon" type="image/png" href="images/octopus.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Lora:ital,wght@0,400;0,500;1,400;1,500&display=swap">
+  <link rel="stylesheet" href="src/style.css">
+</head>
+
+<body class="genre-noir">
+
+  <!-- ─── SETTINGS PANEL ─── -->
+  <div id="settings-overlay" class="settings-overlay hidden">
+    <div class="settings-card">
+      <div class="settings-header">
+        <h3>⚡ Lambda Configuration</h3>
+        <button class="btn-close" onclick="closeSettings()">✕</button>
+      </div>
+      <p>Paste your AWS Lambda Function URL. All AI calls are proxied through this endpoint — the browser never calls Gemini directly.</p>
+      <input type="url" id="lambda-url-input" placeholder="https://xxxxxxxx.lambda-url.us-east-1.on.aws/">
+      <div class="settings-divider"></div>
+      <p class="settings-sublabel">Scene images</p>
+      <div class="settings-radio-group">
+        <label class="settings-radio">
+          <input type="radio" name="image-mode" value="lambda" onchange="setImageMode(this.value)">
+          <span>AI-generated <span class="settings-radio-sub">via Lambda</span></span>
+        </label>
+        <label class="settings-radio">
+          <input type="radio" name="image-mode" value="terrain" onchange="setImageMode(this.value)">
+          <span>Local terrain <span class="settings-radio-sub">instant · no API</span></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <button class="btn-primary" onclick="saveLambdaUrl()" style="flex:1">Connect</button>
+        <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── INFO OVERLAY ─── -->
+  <div id="info-overlay" class="info-overlay hidden">
+    <div class="info-card">
+      <div class="info-header">
+        <span class="info-logo">✦ Fateweaver</span>
+        <button class="btn-close" onclick="closeInfo()">✕</button>
+      </div>
+      <p class="info-body">Fateweaver is an idea engine for storytellers, built to spark new directions whenever inspiration slows down. It turns a single seed into fresh characters, worlds, conflicts, and twists that push your thinking past the obvious. Whether you are shaping a novel, game, or campaign, Fateweaver helps you generate stronger concepts faster and keep creative momentum going.</p>
+      <div class="info-meta">
+        <span>© Fateweaver 2026</span>
+        <a href="mailto:dev@ivanbueno.com" class="info-link">dev@ivanbueno.com</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── INFO BUTTON ─── -->
+  <button class="info-btn" onclick="toggleInfo()" title="About Fateweaver">ℹ</button>
+
+  <!-- ─── MUSIC BUTTON ─── -->
+  <button id="music-btn" class="music-btn mus-hidden" onclick="toggleMusicMute()" title="Toggle music" aria-label="Toggle background music">♩</button>
+
+  <!-- ═══════════════════════════════════════
+       SETUP SCREEN — Sequential reveal
+  ═══════════════════════════════════════ -->
+  <div id="screen-setup" class="screen">
+    <div class="screen-bg" id="setup-bg" aria-hidden="true"></div>
+    <div class="setup-wrap">
+
+      <!-- Hero / Title -->
+      <div class="setup-hero">
+        <div class="title-ornament">✦</div>
+        <div class="game-title-row">
+          <div class="game-logo-wrap">
+            <img src="images/octopus.png" alt="" class="game-logo">
+          </div>
+          <h1 class="game-title">Fateweaver</h1>
+        </div>
+        <p class="game-subtitle">An AI-Woven Visual Novel</p>
+      </div>
+
+      <!-- Step 1: Genre (always visible) -->
+      <div id="genre-section" class="setup-section">
+        <div class="step-header">
+          <span class="step-num">I</span>
+          <span class="step-name">Choose Your Genre</span>
+          <span class="step-chosen" id="genre-chosen"></span>
+          <span class="step-change" aria-hidden="true">↩</span>
+        </div>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="option-grid" id="genre-grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Era (revealed after genre) -->
+      <div id="era-section" class="setup-section locked">
+        <div class="step-header">
+          <span class="step-num">II</span>
+          <span class="step-name">Choose Your Era</span>
+          <span class="step-chosen" id="era-chosen"></span>
+          <span class="step-change" aria-hidden="true">↩</span>
+        </div>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="option-grid" id="era-grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Archetype (revealed after era) -->
+      <div id="archetype-section" class="setup-section locked">
+        <div class="step-header">
+          <span class="step-num">III</span>
+          <span class="step-name">Choose Your Archetype</span>
+          <span class="step-chosen" id="archetype-chosen"></span>
+          <span class="step-change" aria-hidden="true">↩</span>
+        </div>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="option-grid" id="archetype-grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Begin (revealed after archetype) -->
+      <div id="begin-btn-wrap" class="begin-wrap locked">
+        <button id="begin-btn" class="begin-btn" onclick="beginStory()">
+          <span class="begin-label">Begin Story</span>
+          <span class="begin-arrow">↳</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       LOADING SCREEN
+  ═══════════════════════════════════════ -->
+  <div id="screen-loading" class="screen hidden">
+    <div class="screen-bg" id="loading-bg" aria-hidden="true"></div>
+    <div class="loading-wrap" id="loading-wrap">
+      <div class="loading-sigil">✦</div>
+      <h2 class="loading-headline">Weaving your fate…</h2>
+      <p class="loading-sub" id="loading-sub">Your story is being woven across 8 beats.</p>
+      <div class="loading-bar-wrap"><div class="loading-bar-fill"></div></div>
+      <div class="loading-timer" id="loading-timer">0s</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       GAME SCREEN — Full-screen cinematic
+  ═══════════════════════════════════════ -->
+  <div id="screen-game" class="screen hidden">
+    <div class="game-layout">
+
+      <!-- Full-screen image background -->
+      <div class="image-panel" id="image-panel">
+        <div class="img-placeholder" id="img-placeholder">
+          <div class="ph-spin"></div>
+          <div class="ph-prompt" id="ph-prompt">Generating scene…</div>
+        </div>
+        <img id="game-img" class="game-img hidden" alt="Scene">
+        <div id="game-svg" class="game-svg hidden"></div>
+      </div>
+
+      <!-- Story text + choices overlay at bottom -->
+      <div class="story-overlay">
+        <div class="story-content">
+          <p id="story-text" class="story-text"></p>
+          <div class="choices" id="choices"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       ENDING SCREEN
+  ═══════════════════════════════════════ -->
+  <div id="screen-ending" class="screen hidden">
+    <div class="ending-wrap">
+      <div class="ending-sigil" id="ending-face">✦</div>
+      <div class="ending-badge" id="ending-badge">GOOD ENDING</div>
+      <p class="ending-sub" id="ending-sub"></p>
+      <div class="ending-actions">
+        <button class="btn-secondary" onclick="playAgain()">↺ Play Again</button>
+        <button class="btn-primary"   onclick="newStory()">✦ New Story</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Populated by deploy.py — contains { lambdaUrl } -->
+  <script src="src/app-config.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
