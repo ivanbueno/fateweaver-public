@@ -591,12 +591,14 @@
     ];
     const pending = new Set(); // pages with in-flight image requests
     let endingShareResetTid = null;
+    const STORY_KEY_PREFIX = 'visualnovel_story_';
+    const PROGRESS_KEY_PREFIX = 'visualnovel_progress_';
 
     /* ─── STORAGE HELPERS ──────────────────────────────────── */
     const slug = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
 
-    function storyKey()    { return `visualnovel_story_${slug(S.genre)}_${slug(S.era)}_${slug(S.archetype)}`; }
-    function progressKey() { return `visualnovel_progress_${slug(S.genre)}_${slug(S.era)}_${slug(S.archetype)}`; }
+    function storyKey()    { return `${STORY_KEY_PREFIX}${slug(S.genre)}_${slug(S.era)}_${slug(S.archetype)}`; }
+    function progressKey() { return `${PROGRESS_KEY_PREFIX}${slug(S.genre)}_${slug(S.era)}_${slug(S.archetype)}`; }
 
     function lsGet(k)   { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
     function lsSet(k,v) {
@@ -627,6 +629,104 @@
     // Images are cached in-memory only (S.imageCache) — never persisted to localStorage
     function cacheImage(pageId, data) { S.imageCache[pageId] = data; }
     function getCachedImage(pageId)   { return S.imageCache[pageId] || null; }
+
+    function storyPreviewLead(storedStory) {
+      const pages = storedStory?.pages || {};
+      const firstPage = pages.page_1 || Object.values(pages)[0] || {};
+      const text = String(firstPage?.text || '').replace(/\s+/g, ' ').trim();
+      if (!text) return 'No story preview available...';
+      const sentenceMatch = text.match(/(.+?[.!?])(?:\s|$)/);
+      if (sentenceMatch?.[1]) return sentenceMatch[1].trim();
+      return text;
+    }
+
+    function savedStoriesFromStorage() {
+      const stories = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key || !key.startsWith(STORY_KEY_PREFIX)) continue;
+          const stored = lsGet(key);
+          if (!stored?.pages) continue;
+
+          const meta = stored.meta || {};
+          const genre = String(meta.genre || 'Unknown Genre');
+          const era = String(meta.era || 'Unknown Era');
+          const archetype = String(meta.archetype || 'Unknown Archetype');
+          stories.push({
+            key,
+            progressKey: key.replace(STORY_KEY_PREFIX, PROGRESS_KEY_PREFIX),
+            story: stored,
+            genre,
+            era,
+            archetype,
+            generatedAt: Number(meta.generatedAt) || 0,
+          });
+        }
+      } catch {
+        return [];
+      }
+
+      stories.sort((a, b) => b.generatedAt - a.generatedAt);
+      return stories;
+    }
+
+    function replaySavedStory(entry) {
+      if (!entry?.story?.pages) return;
+
+      S.genre = entry.genre;
+      S.era = entry.era;
+      S.archetype = entry.archetype;
+      S.story = { pages: entry.story.pages };
+      S.currentPageId = 'page_1';
+      S.choicesMade = [];
+      S.imageCache = {};
+      S.storyRunStartedAt = Date.now();
+
+      localStorage.removeItem(entry.progressKey);
+
+      applyTheme(S.genre);
+      showScreen('game');
+      renderPage('page_1');
+      if (!MUS.ready && !MUS.loading) startBackgroundMusic();
+
+      trackEvent('setup_history_replayed', gaStoryParams({
+        source: 'setup_history',
+      }));
+    }
+
+    function renderSetupHistory() {
+      const historyEl = document.getElementById('setup-history');
+      const summaryEl = document.getElementById('setup-history-summary');
+      const listEl = document.getElementById('setup-history-list');
+      if (!historyEl || !summaryEl || !listEl) return;
+
+      const stories = savedStoriesFromStorage();
+      historyEl.classList.toggle('hidden', stories.length === 0);
+      if (!stories.length) {
+        listEl.innerHTML = '';
+        historyEl.open = false;
+        return;
+      }
+
+      summaryEl.textContent = `Replay Previous Stories (${stories.length})`;
+      historyEl.open = false;
+      listEl.innerHTML = '';
+
+      stories.forEach(entry => {
+        const link = document.createElement('a');
+        link.href = '#';
+        link.className = 'setup-history-link';
+        const title = `${entry.genre} / ${entry.era} / ${entry.archetype}`;
+        const preview = storyPreviewLead(entry.story);
+        link.innerHTML = `<strong>${esc(title)}</strong><span>${esc(preview)}</span>`;
+        link.addEventListener('click', evt => {
+          evt.preventDefault();
+          replaySavedStory(entry);
+        });
+        listEl.appendChild(link);
+      });
+    }
 
     /* ─── LAMBDA FETCH ─────────────────────────────────────── */
     async function callLambda(body, ms = 90000) {
@@ -1370,6 +1470,7 @@
           localStorage.removeItem(progressKey());
           S.imageCache = {};
           S.storyRunStartedAt = 0;
+          renderSetupHistory();
           trackEvent('saved_story_discarded', gaStoryParams());
         }
       }
@@ -1393,6 +1494,7 @@
         S.choicesMade   = [];
         S.storyRunStartedAt = Date.now();
         saveStory(result.story); // saves story without image data
+        renderSetupHistory();
         showScreen('game');
         renderPage('page_1');
         trackEvent('story_generation_succeeded', gaStoryParams({
@@ -2148,6 +2250,7 @@
         setMusicBtn('hidden');
         localStorage.removeItem(storyKey());
         localStorage.removeItem(progressKey());
+        renderSetupHistory();
         S.story = null; S.imageCache = {};
         S.currentPageId = 'page_1'; S.choicesMade = [];
         S.storyRunStartedAt = 0;
@@ -2207,6 +2310,7 @@
         handleResumeDecision(false);
       });
       showScreen('setup');
+      renderSetupHistory();
       checkReady();
 
       trackEvent('app_ready', {
