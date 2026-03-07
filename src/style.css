@@ -24,9 +24,10 @@
   --font-hud:        'Rajdhani', 'Trebuchet MS', sans-serif;
   --font-signal:     'Teko', 'Arial Narrow', sans-serif;
   --icon-btn-top: 1rem;
-  --info-btn-right: 1rem;
-  --music-btn-right: 3.6rem;
-  --hud-btn-right: 6.2rem;
+  --home-btn-right: 1rem;
+  --info-btn-right: 3.6rem;
+  --music-btn-right: 6.2rem;
+  --hud-btn-right: 8.8rem;
   --loading-panel-bg-top: rgba(6, 8, 12, 0.62);
   --loading-panel-bg-bottom: rgba(4, 5, 8, 0.86);
   --loading-border: rgba(255, 255, 255, 0.24);
@@ -147,7 +148,8 @@ body {
    drop-shadow separates the pill from light-coloured backgrounds. */
 .info-btn,
 .music-btn,
-.hud-btn {
+.hud-btn,
+.home-btn {
   position: fixed; top: var(--icon-btn-top); z-index: 900;
   width: 36px; height: 36px; border-radius: 50%;
   background: rgba(0, 0, 0, 0.45);
@@ -162,9 +164,25 @@ body {
 }
 .info-btn:hover,
 .music-btn:hover,
-.hud-btn:hover {
+.hud-btn:hover,
+.home-btn:hover {
   background: rgba(255, 255, 255, 0.12);
   filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.6));
+}
+
+/* ─── HOME BUTTON ─── */
+.home-btn {
+  right: var(--home-btn-right);
+  padding: 0;
+}
+.home-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: currentColor;
+}
+.home-btn.home-hidden {
+  display: none;
 }
 
 /* ─── INFO BUTTON ─── */
@@ -2152,8 +2170,11 @@ body {
   }
   .game-hud {
     top: calc(var(--icon-btn-top) + 36px + 5px);
-    right: var(--hud-btn-right);
-    width: min(360px, calc(100vw - var(--hud-btn-right) - 0.7rem));
+    left: 1%;
+    right: 1%;
+    width: 98%;
+    justify-content: center;
+    transform-origin: top center;
   }
   .option-grid {
     grid-template-columns: repeat(2, 1fr);

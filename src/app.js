@@ -758,7 +758,9 @@
         s.id === `screen-${name}` ? s.classList.remove('hidden') : s.classList.add('hidden');
       });
       const hudBtn = document.getElementById('hud-btn');
+      const homeBtn = document.getElementById('btn-home');
       if (hudBtn) hudBtn.classList.toggle('hud-hidden', name !== 'game');
+      if (homeBtn) homeBtn.classList.toggle('home-hidden', name === 'setup');
       if (name === 'game') applyHudState();
       if (A.lastScreen !== name) {
         A.lastScreen = name;
@@ -2234,6 +2236,17 @@
       // Restart music if it stopped or wasn't ready
       if (!MUS.ready && !MUS.loading) startBackgroundMusic();
       trackEvent('play_again_clicked', gaStoryParams());
+    }
+
+    function goHome() {
+      const fromScreen = A.lastScreen || 'unknown';
+      showScreen('setup');
+      const setupScreen = document.getElementById('screen-setup');
+      if (setupScreen) setupScreen.scrollTop = 0;
+      window.scrollTo(0, 0);
+      trackEvent('home_button_clicked', gaStoryParams({
+        from_screen: gaSafe(fromScreen, 24),
+      }));
     }
 
     function newStory() {
