@@ -227,12 +227,49 @@
        ENDING SCREEN
   ═══════════════════════════════════════ -->
   <div id="screen-ending" class="screen hidden">
+    <div class="ending-canvas" aria-hidden="true">
+      <img id="ending-bg-img" class="ending-bg-media hidden" alt="">
+      <div id="ending-bg-svg" class="ending-bg-media ending-bg-svg hidden"></div>
+    </div>
     <div class="ending-wrap">
-      <div class="ending-sigil" id="ending-face">✦</div>
-      <div class="ending-badge" id="ending-badge">GOOD ENDING</div>
-      <p class="ending-sub" id="ending-sub"></p>
-      <div class="ending-actions">
-        <button class="btn-secondary" onclick="playAgain()">↺ Play Again</button>
+      <p class="ending-kicker ending-reveal" id="ending-kicker">Final Debrief</p>
+      <div class="ending-sigil ending-reveal" id="ending-face">✦</div>
+      <div class="ending-badge ending-reveal" id="ending-badge">GOOD ENDING</div>
+      <p class="ending-sub ending-reveal" id="ending-sub"></p>
+
+      <div class="ending-stats ending-reveal">
+        <div class="ending-stat">
+          <span class="ending-stat-label">Fate Vector</span>
+          <span class="ending-stat-value" id="ending-route">—</span>
+        </div>
+        <div class="ending-stat">
+          <span class="ending-stat-label">Decisions</span>
+          <span class="ending-stat-value" id="ending-choices">—</span>
+        </div>
+        <div class="ending-stat">
+          <span class="ending-stat-label">Runtime</span>
+          <span class="ending-stat-value" id="ending-runtime">00:00</span>
+        </div>
+        <div class="ending-stat">
+          <span class="ending-stat-label">Alignment</span>
+          <span class="ending-stat-value" id="ending-alignment">—</span>
+        </div>
+      </div>
+
+      <div class="ending-meter ending-reveal">
+        <div class="ending-meter-head">
+          <span class="ending-meter-label">Legend Rating</span>
+          <span class="ending-meter-score" id="ending-score">000</span>
+        </div>
+        <div class="ending-meter-track">
+          <div class="ending-meter-fill" id="ending-meter-fill"></div>
+        </div>
+        <p class="ending-logline" id="ending-logline"></p>
+      </div>
+
+      <div class="ending-actions ending-reveal">
+        <button id="ending-share-btn" class="btn-secondary" onclick="shareEnding()">⧉ Copy Recap</button>
+        <button class="btn-secondary" onclick="playAgain()">↺ Replay Route</button>
         <button class="btn-primary"   onclick="newStory()">✦ New Story</button>
       </div>
     </div>

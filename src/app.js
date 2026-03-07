@@ -298,6 +298,20 @@
         bad:     { badge: 'THE LAST CELL GOES DARK',    sub: 'They found you. The cause outlives you, but barely, and quietly.' },
       },
     };
+    const ENDING_STATUS = {
+      good: {
+        kicker: 'Campaign Cleared',
+        alignment: 'Ascendant',
+      },
+      neutral: {
+        kicker: 'Operation Stabilized',
+        alignment: 'Uncertain',
+      },
+      bad: {
+        kicker: 'Mission Compromised',
+        alignment: 'Fallen',
+      },
+    };
 
     const GENRE_CFG = {
       'Noir Mystery':   { key: 'noir',      font: "'Playfair Display', Georgia, serif",    fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
@@ -345,6 +359,8 @@
       imageMode:     'lambda', // 'lambda' | 'terrain'
       hudCollapsed:  false,
       hudBeat:       1,
+      storyRunStartedAt: 0,
+      lastEndingType: 'good',
     };
 
     // ─── ANALYTICS (Google Analytics 4) ───────────────────────
@@ -572,6 +588,7 @@
       { x: 95, size: 2, dur: 12.9, delay: -0.7 },
     ];
     const pending = new Set(); // pages with in-flight image requests
+    let endingShareResetTid = null;
 
     /* ─── STORAGE HELPERS ──────────────────────────────────── */
     const slug = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -596,7 +613,12 @@
     function loadStoredStory() { return lsGet(storyKey()); }
 
     function saveProgress() {
-      lsSet(progressKey(), { currentPage: S.currentPageId, choicesMade: S.choicesMade, startedAt: Date.now() });
+      if (!S.storyRunStartedAt) S.storyRunStartedAt = Date.now();
+      lsSet(progressKey(), {
+        currentPage: S.currentPageId,
+        choicesMade: S.choicesMade,
+        startedAt: S.storyRunStartedAt,
+      });
     }
     function loadProgress() { return lsGet(progressKey()); }
 
@@ -1202,6 +1224,7 @@
           const prog = loadProgress();
           S.currentPageId = prog?.currentPage || 'page_1';
           S.choicesMade   = prog?.choicesMade  || [];
+          S.storyRunStartedAt = Number(prog?.startedAt) || Date.now();
           showScreen('game');
           renderPage(S.currentPageId);
           startBackgroundMusic(); // fire-and-forget
@@ -1214,6 +1237,7 @@
           localStorage.removeItem(storyKey());
           localStorage.removeItem(progressKey());
           S.imageCache = {};
+          S.storyRunStartedAt = 0;
           trackEvent('saved_story_discarded', gaStoryParams());
         }
       }
@@ -1235,6 +1259,7 @@
         S.story         = result.story;
         S.currentPageId = 'page_1';
         S.choicesMade   = [];
+        S.storyRunStartedAt = Date.now();
         saveStory(result.story); // saves story without image data
         showScreen('game');
         renderPage('page_1');
@@ -1563,6 +1588,132 @@
       return genreCopy[type] || ENDING_COPY.default[type] || ENDING_COPY.default.good;
     }
 
+    function formatRuntime(ms) {
+      const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+      const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+      const ss = String(totalSec % 60).padStart(2, '0');
+      return `${mm}:${ss}`;
+    }
+
+    function endingOutcomeTally() {
+      const tally = { good: 0, neutral: 0, bad: 0 };
+      (S.choicesMade || []).forEach(choice => {
+        if (choice?.outcome === 'good' || choice?.outcome === 'neutral' || choice?.outcome === 'bad') {
+          tally[choice.outcome] += 1;
+        }
+      });
+      return tally;
+    }
+
+    function endingScore(type, tally) {
+      const total = tally.good + tally.neutral + tally.bad;
+      const weighted = total ? ((tally.good * 100) + (tally.neutral * 58) + (tally.bad * 26)) / total : 50;
+      const bias = type === 'good' ? 12 : type === 'bad' ? -12 : 0;
+      return Math.max(8, Math.min(99, Math.round(weighted + bias)));
+    }
+
+    function endingRank(score) {
+      if (score >= 95) return 'Mythic';
+      if (score >= 85) return 'Legendary';
+      if (score >= 70) return 'Elite';
+      if (score >= 50) return 'Survivor';
+      return 'Last Stand';
+    }
+
+    function endingReport(type) {
+      const tally = endingOutcomeTally();
+      const score = endingScore(type, tally);
+      const rank = endingRank(score);
+      const maxDecisions = Math.max(1, BEAT_NAMES.length - 1);
+      const runMs = S.storyRunStartedAt ? (Date.now() - S.storyRunStartedAt) : 0;
+      const meta = gaPageMeta(S.currentPageId || '');
+      const path = meta.path || type || 'good';
+      return {
+        kicker: ENDING_STATUS[type]?.kicker || ENDING_STATUS.good.kicker,
+        route: routeLabel(S.genre, S.archetype, path),
+        decisions: `${S.choicesMade.length}/${maxDecisions}`,
+        runtime: formatRuntime(runMs),
+        alignment: `${ENDING_STATUS[type]?.alignment || ENDING_STATUS.good.alignment} • ${rank}`,
+        score,
+        rank,
+        recap: `${tally.good} ascendant • ${tally.neutral} balanced • ${tally.bad} fallen decisions`,
+      };
+    }
+
+    function endingShareText(type, report, copy) {
+      return [
+        `Fateweaver Ending: ${copy.badge}`,
+        copy.sub,
+        `Route: ${report.route}`,
+        `Alignment: ${report.alignment}`,
+        `Legend Rating: ${String(report.score).padStart(3, '0')} (${report.rank})`,
+        `Decisions: ${report.decisions}`,
+        `Runtime: ${report.runtime}`,
+        `Loadout: ${S.genre || 'Unknown'} | ${S.era || 'Unknown'} | ${S.archetype || 'Unknown'}`,
+      ].join('\n');
+    }
+
+    function syncEndingBackdrop(pageId) {
+      const bgImg = document.getElementById('ending-bg-img');
+      const bgSvg = document.getElementById('ending-bg-svg');
+      if (!bgImg || !bgSvg) return;
+
+      const showImg = src => {
+        if (!src) return false;
+        bgSvg.classList.add('hidden');
+        bgSvg.innerHTML = '';
+        bgImg.src = src;
+        bgImg.classList.remove('hidden');
+        return true;
+      };
+      const showSvg = markup => {
+        if (!markup) return false;
+        bgImg.classList.add('hidden');
+        bgSvg.innerHTML = markup;
+        const svgEl = bgSvg.querySelector('svg');
+        if (svgEl) {
+          svgEl.removeAttribute('width');
+          svgEl.removeAttribute('height');
+          svgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+        }
+        bgSvg.classList.remove('hidden');
+        return true;
+      };
+
+      const cached = getCachedImage(pageId);
+      if (cached?.type === 'image' && cached.data && cached.mimeType) {
+        if (showImg(`data:${cached.mimeType};base64,${cached.data}`)) return;
+      }
+      if (cached?.type === 'svg' && cached.data) {
+        if (showSvg(cached.data)) return;
+      }
+
+      const liveImg = document.getElementById('game-img');
+      if (liveImg && !liveImg.classList.contains('hidden') && liveImg.src) {
+        if (showImg(liveImg.src)) return;
+      }
+
+      const liveSvg = document.getElementById('game-svg');
+      if (liveSvg && !liveSvg.classList.contains('hidden') && liveSvg.innerHTML.trim()) {
+        if (showSvg(liveSvg.innerHTML)) return;
+      }
+
+      bgImg.classList.add('hidden');
+      bgSvg.classList.add('hidden');
+      bgSvg.innerHTML = '';
+    }
+
+    function resetEndingShareButton() {
+      const btn = document.getElementById('ending-share-btn');
+      if (!btn) return;
+      if (endingShareResetTid) {
+        clearTimeout(endingShareResetTid);
+        endingShareResetTid = null;
+      }
+      btn.textContent = '⧉ Copy Recap';
+      btn.classList.remove('copied');
+    }
+
     /* ─── STORY CIRCLE ─────────────────────────────────────── */
     function renderCircle(currentBeat) {
       const el = document.getElementById('story-circle');
@@ -1706,14 +1857,34 @@
 
     /* ─── ENDING SCREEN ────────────────────────────────────── */
     function showEnding(type) {
+      const endingScreen = document.getElementById('screen-ending');
       const sigil = document.getElementById('ending-face');
       const badge = document.getElementById('ending-badge');
-      const sub   = document.getElementById('ending-sub');
+      const sub = document.getElementById('ending-sub');
+      const kicker = document.getElementById('ending-kicker');
+      const route = document.getElementById('ending-route');
+      const choices = document.getElementById('ending-choices');
+      const runtime = document.getElementById('ending-runtime');
+      const alignment = document.getElementById('ending-alignment');
+      const score = document.getElementById('ending-score');
+      const logline = document.getElementById('ending-logline');
+
       sigil.className = 'ending-sigil';
       badge.className = 'ending-badge';
       const copy = endingCopyFor(type);
+      const report = endingReport(type);
+
+      if (kicker) kicker.textContent = report.kicker;
       badge.textContent = copy.badge;
-      sub.textContent   = copy.sub;
+      sub.textContent = copy.sub;
+
+      if (route) route.textContent = report.route;
+      if (choices) choices.textContent = report.decisions;
+      if (runtime) runtime.textContent = report.runtime;
+      if (alignment) alignment.textContent = report.alignment;
+      if (score) score.textContent = String(report.score).padStart(3, '0');
+      if (logline) logline.textContent = report.recap;
+
       if (type === 'neutral') {
         sigil.textContent = '◎';
         sigil.classList.add('neutral');
@@ -1725,11 +1896,66 @@
       } else {
         sigil.textContent = '✦';
       }
+
+      if (endingScreen) {
+        endingScreen.classList.remove('ending-good', 'ending-neutral', 'ending-bad', 'is-revealed');
+        endingScreen.classList.add(`ending-${type}`);
+        endingScreen.style.setProperty('--ending-meter-target', `${report.score}%`);
+      }
+
+      S.lastEndingType = type;
+      syncEndingBackdrop(S.currentPageId);
+      resetEndingShareButton();
       showScreen('ending');
+
+      if (endingScreen) {
+        void endingScreen.offsetWidth;
+        endingScreen.classList.add('is-revealed');
+      }
+
       trackEvent('ending_viewed', gaStoryParams({
         ending_type: gaSafe(type, 16),
         total_choices: S.choicesMade.length,
         final_page: gaSafe(S.currentPageId, 24),
+        ending_score: report.score,
+        ending_rank: gaSafe(report.rank, 24),
+      }));
+    }
+
+    async function shareEnding() {
+      const btn = document.getElementById('ending-share-btn');
+      const type = S.lastEndingType || determineEnding(S.currentPageId || '');
+      const report = endingReport(type);
+      const copy = endingCopyFor(type);
+      const recap = endingShareText(type, report, copy);
+      let copied = false;
+
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(recap);
+          copied = true;
+        }
+      } catch (_) {
+        copied = false;
+      }
+
+      if (!copied) window.prompt('Copy your ending recap:', recap);
+
+      if (btn) {
+        if (endingShareResetTid) clearTimeout(endingShareResetTid);
+        btn.classList.add('copied');
+        btn.textContent = copied ? '✓ Recap Copied' : 'Recap Ready';
+        endingShareResetTid = setTimeout(() => {
+          btn.textContent = '⧉ Copy Recap';
+          btn.classList.remove('copied');
+          endingShareResetTid = null;
+        }, 2200);
+      }
+
+      trackEvent('ending_recap_copied', gaStoryParams({
+        ending_type: gaSafe(type, 16),
+        ending_score: report.score,
+        copied: Number(copied),
       }));
     }
 
@@ -1738,6 +1964,7 @@
       localStorage.removeItem(progressKey());
       S.currentPageId = 'page_1';
       S.choicesMade   = [];
+      S.storyRunStartedAt = Date.now();
       showScreen('game');
       renderPage('page_1');
       // Restart music if it stopped or wasn't ready
@@ -1761,6 +1988,8 @@
         localStorage.removeItem(progressKey());
         S.story = null; S.imageCache = {};
         S.currentPageId = 'page_1'; S.choicesMade = [];
+        S.storyRunStartedAt = 0;
+        S.lastEndingType = 'good';
         S.genre = null; S.era = null; S.archetype = null;
         document.querySelectorAll('.opt').forEach(b => b.classList.remove('sel'));
         document.getElementById('begin-btn').disabled = true;
