@@ -371,6 +371,8 @@
       sessionId: `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       storyStartedAt: 0,
     };
+    let resumeDecisionResolver = null;
+    let resumeDecisionFocusEl = null;
 
     function gaSafe(value, maxLen = 120) {
       if (value === null || value === undefined) return '';
@@ -724,6 +726,62 @@
       const wasOpen = !overlay.classList.contains('hidden');
       overlay.classList.add('hidden');
       if (wasOpen) trackEvent('info_toggled', { state: 'closed' });
+    }
+
+    function resumeCheckpointLabel(pageId) {
+      const meta = gaPageMeta(pageId || 'page_1');
+      const beat = Math.max(1, Math.min(BEAT_NAMES.length, Number(meta.beat) || 1));
+      return `Beat ${romanBeat(beat)} · ${BEAT_NAMES[beat - 1] || 'You'}`;
+    }
+
+    function promptResumeDecision(existing, progress) {
+      const overlay = document.getElementById('resume-overlay');
+      const checkpointEl = document.getElementById('resume-meta-checkpoint');
+      const decisionsEl = document.getElementById('resume-meta-decisions');
+      const copyEl = document.getElementById('resume-copy');
+      const resumeBtn = document.getElementById('resume-btn');
+      if (!overlay || !checkpointEl || !decisionsEl || !copyEl) {
+        return Promise.resolve(confirm('A saved story exists for this combination.\n\nContinue where you left off?'));
+      }
+
+      const pageId = progress?.currentPage || 'page_1';
+      const choicesCount = Array.isArray(progress?.choicesMade) ? progress.choicesMade.length : 0;
+      const pageCount = Object.keys(existing?.pages || {}).length;
+
+      checkpointEl.textContent = resumeCheckpointLabel(pageId);
+      decisionsEl.textContent = `${choicesCount} decision${choicesCount === 1 ? '' : 's'}`;
+      copyEl.textContent = pageCount
+        ? `A local save was found with ${pageCount} generated pages for this genre, era, and archetype.`
+        : 'A local checkpoint exists for this setup.';
+
+      if (resumeDecisionResolver) {
+        const resolvePrev = resumeDecisionResolver;
+        resumeDecisionResolver = null;
+        resolvePrev(false);
+      }
+
+      overlay.classList.remove('hidden');
+      resumeDecisionFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      requestAnimationFrame(() => resumeBtn?.focus());
+
+      return new Promise(resolve => {
+        resumeDecisionResolver = resolve;
+      });
+    }
+
+    function handleResumeDecision(shouldResume) {
+      const overlay = document.getElementById('resume-overlay');
+      if (overlay) overlay.classList.add('hidden');
+
+      const resolve = resumeDecisionResolver;
+      resumeDecisionResolver = null;
+
+      if (resumeDecisionFocusEl && typeof resumeDecisionFocusEl.focus === 'function') {
+        resumeDecisionFocusEl.focus();
+      }
+      resumeDecisionFocusEl = null;
+
+      if (typeof resolve === 'function') resolve(Boolean(shouldResume));
     }
 
     function hudIconForBeat(beat) {
@@ -1289,13 +1347,13 @@
       // Check for existing saved story
       const existing = loadStoredStory();
       if (existing?.pages) {
-        const shouldResume = confirm('A saved story exists for this combination.\n\nContinue where you left off?');
+        const prog = loadProgress();
+        const shouldResume = await promptResumeDecision(existing, prog);
         trackEvent('story_resume_prompted', gaStoryParams({
           resumed: Number(shouldResume),
         }));
         if (shouldResume) {
           S.story = { pages: existing.pages };
-          const prog = loadProgress();
           S.currentPageId = prog?.currentPage || 'page_1';
           S.choicesMade   = prog?.choicesMade  || [];
           S.storyRunStartedAt = Number(prog?.startedAt) || Date.now();
@@ -2140,6 +2198,13 @@
       bindAudioUnlockListeners();
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden && MUS.ready) void ensureAudioPlaybackReady();
+      });
+      document.addEventListener('keydown', evt => {
+        if (evt.key !== 'Escape') return;
+        const resumeOverlay = document.getElementById('resume-overlay');
+        if (!resumeOverlay || resumeOverlay.classList.contains('hidden')) return;
+        evt.preventDefault();
+        handleResumeDecision(false);
       });
       showScreen('setup');
       checkReady();

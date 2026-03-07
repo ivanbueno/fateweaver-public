@@ -56,6 +56,29 @@
     </div>
   </div>
 
+  <!-- ─── RESUME STORY DIALOG ─── -->
+  <div id="resume-overlay" class="resume-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="resume-title" aria-describedby="resume-copy">
+    <div class="resume-card">
+      <p class="resume-kicker">Saved Story Found</p>
+      <h3 id="resume-title">Continue your previous run?</h3>
+      <p id="resume-copy" class="resume-copy">A local checkpoint exists for this setup.</p>
+      <div class="resume-meta">
+        <div class="resume-meta-item">
+          <span class="resume-meta-label">Checkpoint</span>
+          <span class="resume-meta-value" id="resume-meta-checkpoint">Beat I · You</span>
+        </div>
+        <div class="resume-meta-item">
+          <span class="resume-meta-label">Choices Made</span>
+          <span class="resume-meta-value" id="resume-meta-decisions">0 decisions</span>
+        </div>
+      </div>
+      <div class="settings-row resume-actions">
+        <button id="resume-btn" class="btn-primary" onclick="handleResumeDecision(true)">Resume Story</button>
+        <button id="restart-btn" class="btn-secondary" onclick="handleResumeDecision(false)">Start Fresh</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── INFO BUTTON ─── -->
   <button class="info-btn" onclick="toggleInfo()" title="About Fateweaver"><span class="info-btn-icon" aria-hidden="true">&#x2139;&#xFE0E;</span></button>
 
