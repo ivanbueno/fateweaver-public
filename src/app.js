@@ -1052,13 +1052,85 @@
       muted:     false,
       loading:   false,
       ready:     false,
+      unlocked:  false,
+      unlockListenersBound: false,
     };
     const MUSIC_VOL   = 0.22; // ambient volume — low enough not to overpower story text
     const MUSIC_XFADE = 1.5;  // crossfade duration in seconds
+    const AUDIO_UNLOCK_EVENTS = ['touchstart', 'pointerdown', 'click', 'keydown'];
 
     function initAudioCtx() {
-      if (!MUS.ctx) MUS.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      if (MUS.ctx.state === 'suspended') MUS.ctx.resume().catch(() => {});
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      if (!MUS.ctx) MUS.ctx = new Ctx();
+      return MUS.ctx;
+    }
+
+    function detachAudioUnlockListeners() {
+      if (!MUS.unlockListenersBound) return;
+      AUDIO_UNLOCK_EVENTS.forEach(evt => document.removeEventListener(evt, audioUnlockHandler, true));
+      MUS.unlockListenersBound = false;
+    }
+
+    function bindAudioUnlockListeners() {
+      if (MUS.unlockListenersBound) return;
+      AUDIO_UNLOCK_EVENTS.forEach(evt => document.addEventListener(evt, audioUnlockHandler, { passive: true, capture: true }));
+      MUS.unlockListenersBound = true;
+    }
+
+    async function ensureAudioPlaybackReady() {
+      const ctx = initAudioCtx();
+      if (!ctx) return false;
+
+      // iOS Safari: play a silent single-sample buffer to unlock WebAudio output.
+      if (!MUS.unlocked) {
+        try {
+          const silent = ctx.createBuffer(1, 1, 22050);
+          const src = ctx.createBufferSource();
+          src.buffer = silent;
+          src.connect(ctx.destination);
+          src.start(0);
+          src.stop(0);
+        } catch (_) {}
+      }
+
+      if (ctx.state !== 'running') {
+        try { await ctx.resume(); } catch (_) {}
+      }
+      if (ctx.state === 'running') {
+        MUS.unlocked = true;
+        detachAudioUnlockListeners();
+        return true;
+      }
+      return false;
+    }
+
+    function audioUnlockHandler() {
+      void ensureAudioPlaybackReady();
+    }
+
+    function decodeMusicBuffer(ab) {
+      if (!MUS.ctx) return Promise.reject(new Error('Audio context unavailable.'));
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const done = (fn, val) => {
+          if (settled) return;
+          settled = true;
+          fn(val);
+        };
+        try {
+          const maybePromise = MUS.ctx.decodeAudioData(
+            ab.slice(0),
+            buf => done(resolve, buf),
+            err => done(reject, err || new Error('Audio decode failed.'))
+          );
+          if (maybePromise && typeof maybePromise.then === 'function') {
+            maybePromise.then(buf => done(resolve, buf)).catch(err => done(reject, err));
+          }
+        } catch (err) {
+          done(reject, err);
+        }
+      });
     }
 
     function setMusicBtn(state) {
@@ -1126,7 +1198,7 @@
     }
 
     function toggleMusicMute() {
-      initAudioCtx();
+      void ensureAudioPlaybackReady();
       MUS.muted = !MUS.muted;
       if (MUS.gain) {
         MUS.gain.gain.setTargetAtTime(MUS.muted ? 0 : MUSIC_VOL, MUS.ctx.currentTime, 0.6);
@@ -1149,7 +1221,7 @@
       const ab   = new ArrayBuffer(bin.length);
       const view = new Uint8Array(ab);
       for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-      return MUS.ctx.decodeAudioData(ab);
+      return decodeMusicBuffer(ab);
     }
 
     // Fire-and-forget: fetch 2 more clips in parallel, append as they arrive
@@ -1163,6 +1235,7 @@
 
     async function startBackgroundMusic() {
       if (MUS.loading) return;
+      await ensureAudioPlaybackReady();
       stopMusic();
       MUS.loading = true;
       setMusicBtn('loading');
@@ -1182,7 +1255,8 @@
         setMusicBtn(MUS.muted ? 'off' : 'on');
 
         // Start looping — first iteration's fade-in handles the initial ramp-up
-        scheduleLoopIteration(0, MUS.ctx.currentTime);
+        await ensureAudioPlaybackReady();
+        scheduleLoopIteration(0, MUS.ctx.currentTime + 0.05);
         trackEvent('music_generation_succeeded', gaStoryParams({ clips_loaded: 1 }));
 
         // Fetch 2 more clips in parallel; they slot into rotation as they arrive
@@ -1209,7 +1283,7 @@
       applyTheme(S.genre);
 
       // Prime AudioContext within this user-gesture call
-      initAudioCtx();
+      await ensureAudioPlaybackReady();
       new Audio('sfx/knock.mp3').play().catch(() => {});
 
       // Check for existing saved story
@@ -2033,6 +2107,10 @@
       initHudState();
       initAnalytics();
       applyScreenTexture('noir'); // default theme
+      bindAudioUnlockListeners();
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && MUS.ready) void ensureAudioPlaybackReady();
+      });
       showScreen('setup');
       checkReady();
 
