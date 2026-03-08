@@ -314,36 +314,36 @@
     };
 
     const GENRE_CFG = {
-      'Noir Mystery':   { key: 'noir',      font: "'Playfair Display', Georgia, serif",    fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
-      'Gothic Horror':  { key: 'gothic',    font: "'IM Fell English', Georgia, serif",      fontUrl: 'https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap' },
-      'Space Opera':    { key: 'space',     font: "'Orbitron', monospace",                  fontUrl: 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap' },
-      'Samurai Epic':   { key: 'samurai',   font: "'Noto Serif JP', serif",                 fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap' },
-      'Cyberpunk':      { key: 'cyberpunk', font: "'Share Tech Mono', monospace",           fontUrl: 'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap' },
-      'Romantic Drama': { key: 'romantic',  font: "'Cormorant Garamond', Georgia, serif",   fontUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&display=swap' },
-      'Dark Fantasy':         { key: 'gothic',    font: "'IM Fell English', Georgia, serif",    fontUrl: 'https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap' },
-      'Mythic Adventure':     { key: 'samurai',   font: "'Noto Serif JP', serif",               fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap' },
-      'Post-Apocalyptic':     { key: 'cyberpunk', font: "'Share Tech Mono', monospace",         fontUrl: 'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap' },
-      'Steampunk Intrigue':   { key: 'noir',      font: "'Playfair Display', Georgia, serif",   fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
-      'Political Thriller':   { key: 'noir',      font: "'Playfair Display', Georgia, serif",   fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
-      'Supernatural Mystery': { key: 'gothic',    font: "'IM Fell English', Georgia, serif",    fontUrl: 'https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap' },
-      'Western Frontier':     { key: 'noir',      font: "'Playfair Display', Georgia, serif",   fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
-      'Superhero Saga':       { key: 'cyberpunk', font: "'Share Tech Mono', monospace",         fontUrl: 'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap' },
-      'Historical Drama':     { key: 'romantic',  font: "'Cormorant Garamond', Georgia, serif", fontUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&display=swap' },
-      'High Fantasy':         { key: 'samurai',   font: "'Cinzel', Georgia, serif",              fontUrl: 'https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap' },
-      'Urban Fantasy':        { key: 'gothic',    font: "'IM Fell English', Georgia, serif",    fontUrl: 'https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap' },
-      'Time Travel Adventure':{ key: 'space',     font: "'Orbitron', monospace",                fontUrl: 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap' },
-      'Detective Thriller':   { key: 'noir',      font: "'Playfair Display', Georgia, serif",   fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
-      'Survival Horror':      { key: 'gothic',    font: "'IM Fell English', Georgia, serif",    fontUrl: 'https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap' },
-      'Military Sci-Fi':      { key: 'cyberpunk', font: "'Share Tech Mono', monospace",         fontUrl: 'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap' },
-      'Court Intrigue':       { key: 'romantic',  font: "'Cormorant Garamond', Georgia, serif", fontUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&display=swap' },
-      'Monster Hunter Adventure': { key: 'samurai', font: "'Noto Serif JP', serif",             fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap' },
-      'School Drama':         { key: 'romantic',  font: "'Cormorant Garamond', Georgia, serif", fontUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&display=swap' },
-      'Forbidden Romance':    { key: 'romantic',  font: "'Cormorant Garamond', Georgia, serif", fontUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&display=swap' },
-      'Heist':                { key: 'noir',      font: "'Playfair Display', Georgia, serif",   fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
-      'Espionage Thriller':   { key: 'noir',      font: "'Playfair Display', Georgia, serif",   fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
-      'Lost Civilization Adventure': { key: 'samurai', font: "'Noto Serif JP', serif",         fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap' },
-      'Occult Mystery':       { key: 'gothic',    font: "'IM Fell English', Georgia, serif",    fontUrl: 'https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap' },
-      'Resistance':           { key: 'cyberpunk', font: "'Share Tech Mono', monospace",         fontUrl: 'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap' },
+      'Noir Mystery':   { key: 'noir',      font: "'Playfair Display', Georgia, serif",      fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Gothic Horror':  { key: 'horror',    font: "'Spectral', Georgia, serif",               fontUrl: 'https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Space Opera':    { key: 'space',     font: "'Orbitron', monospace",                    fontUrl: 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap' },
+      'Samurai Epic':   { key: 'samurai',   font: "'Noto Serif JP', serif",                   fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap' },
+      'Cyberpunk':      { key: 'cyberpunk', font: "'Share Tech Mono', monospace",             fontUrl: 'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap' },
+      'Romantic Drama': { key: 'drama',     font: "'Libre Baskerville', Georgia, serif",      fontUrl: 'https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Dark Fantasy':   { key: 'gothic',    font: "'IM Fell English', Georgia, serif",        fontUrl: 'https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap' },
+      'Mythic Adventure':     { key: 'adventure',  font: "'Merriweather', Georgia, serif",                fontUrl: 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap' },
+      'Post-Apocalyptic':     { key: 'scifi',      font: "'Exo 2', 'Segoe UI', sans-serif",               fontUrl: 'https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700&display=swap' },
+      'Steampunk Intrigue':   { key: 'western',    font: "'Alegreya', Georgia, serif",                     fontUrl: 'https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Political Thriller':   { key: 'thriller',   font: "'IBM Plex Sans', 'Helvetica Neue', sans-serif",  fontUrl: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap' },
+      'Supernatural Mystery': { key: 'horror',    font: "'Spectral', Georgia, serif",                      fontUrl: 'https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Western Frontier':     { key: 'western',    font: "'Alegreya', Georgia, serif",                     fontUrl: 'https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Superhero Saga':       { key: 'resistance', font: "'Barlow Condensed', 'Trebuchet MS', sans-serif", fontUrl: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&display=swap' },
+      'Historical Drama':     { key: 'drama',     font: "'Libre Baskerville', Georgia, serif",             fontUrl: 'https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap' },
+      'High Fantasy':         { key: 'adventure',  font: "'Merriweather', Georgia, serif",                fontUrl: 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap' },
+      'Urban Fantasy':        { key: 'gothic',    font: "'IM Fell English', Georgia, serif",              fontUrl: 'https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap' },
+      'Time Travel Adventure':{ key: 'scifi',      font: "'Exo 2', 'Segoe UI', sans-serif",               fontUrl: 'https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700&display=swap' },
+      'Detective Thriller':   { key: 'thriller',   font: "'IBM Plex Sans', 'Helvetica Neue', sans-serif",  fontUrl: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap' },
+      'Survival Horror':      { key: 'horror',    font: "'Spectral', Georgia, serif",                      fontUrl: 'https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Military Sci-Fi':      { key: 'scifi',      font: "'Exo 2', 'Segoe UI', sans-serif",               fontUrl: 'https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700&display=swap' },
+      'Court Intrigue':       { key: 'drama',     font: "'Libre Baskerville', Georgia, serif",             fontUrl: 'https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Monster Hunter Adventure': { key: 'adventure', font: "'Merriweather', Georgia, serif",             fontUrl: 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap' },
+      'School Drama':         { key: 'drama',     font: "'Libre Baskerville', Georgia, serif",             fontUrl: 'https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Forbidden Romance':    { key: 'romantic',  font: "'Cormorant Garamond', Georgia, serif",           fontUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&display=swap' },
+      'Heist':                { key: 'thriller',   font: "'IBM Plex Sans', 'Helvetica Neue', sans-serif",  fontUrl: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap' },
+      'Espionage Thriller':   { key: 'thriller',   font: "'IBM Plex Sans', 'Helvetica Neue', sans-serif",  fontUrl: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap' },
+      'Lost Civilization Adventure': { key: 'adventure', font: "'Merriweather', Georgia, serif",          fontUrl: 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap' },
+      'Occult Mystery':       { key: 'horror',    font: "'Spectral', Georgia, serif",                      fontUrl: 'https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,700;1,400&display=swap' },
+      'Resistance':           { key: 'resistance', font: "'Barlow Condensed', 'Trebuchet MS', sans-serif", fontUrl: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&display=swap' },
     };
 
     // ─── STATE ───────────────────────────────────────────────
@@ -532,6 +532,13 @@
       samurai:   '#7a3020',
       cyberpunk: '#00b4d8',
       romantic:  '#c0607a',
+      resistance:'#6a3e3d',
+      western:   '#9a6a39',
+      thriller:  '#34465f',
+      adventure: '#2e6647',
+      drama:     '#73556b',
+      scifi:     '#356b8a',
+      horror:    '#432634',
     };
     const STARRY_BASE_COLORS = {
       noir:      '#0f162d',
@@ -540,6 +547,13 @@
       samurai:   '#211325',
       cyberpunk: '#042035',
       romantic:  '#24142f',
+      resistance:'#211018',
+      western:   '#2b1d14',
+      thriller:  '#0f1c31',
+      adventure: '#10283d',
+      drama:     '#24162d',
+      scifi:     '#071a34',
+      horror:    '#12060f',
     };
     const OCEAN_BASE_COLORS = {
       noir:      '#20435d',
@@ -548,6 +562,13 @@
       samurai:   '#355170',
       cyberpunk: '#007c9a',
       romantic:  '#4c5f8d',
+      resistance:'#38516a',
+      western:   '#685640',
+      thriller:  '#27536f',
+      adventure: '#1f6f73',
+      drama:     '#5c5684',
+      scifi:     '#1a6386',
+      horror:    '#35234d',
     };
     const FOREST_BASE_COLORS = {
       noir:      '#1a2a25',
@@ -556,6 +577,13 @@
       samurai:   '#2f3824',
       cyberpunk: '#113536',
       romantic:  '#2d2f2b',
+      resistance:'#2f2b2a',
+      western:   '#4a3923',
+      thriller:  '#1f313f',
+      adventure: '#1d4a31',
+      drama:     '#3c2d3a',
+      scifi:     '#1f454f',
+      horror:    '#201928',
     };
     const DESERT_BASE_COLORS = {
       noir:      '#8d6a3a',
@@ -564,6 +592,13 @@
       samurai:   '#a57a45',
       cyberpunk: '#b08a4f',
       romantic:  '#a37652',
+      resistance:'#8f5744',
+      western:   '#b28045',
+      thriller:  '#816d54',
+      adventure: '#b0924f',
+      drama:     '#a37b6e',
+      scifi:     '#728b94',
+      horror:    '#6f4c57',
     };
 
     function _seedStr(str) {
@@ -2396,9 +2431,131 @@
       </svg>`;
     }
 
+    function _spResistance(pid) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <pattern id="${pid}" x="0" y="0" width="84" height="84" patternUnits="userSpaceOnUse">
+            <line x1="-12" y1="84" x2="84" y2="-12" stroke="rgba(255,110,90,0.18)" stroke-width="1.1"/>
+            <line x1="0" y1="84" x2="84" y2="0" stroke="rgba(255,90,74,0.14)" stroke-width="0.9"/>
+            <line x1="-18" y1="66" x2="66" y2="-18" stroke="rgba(255,110,90,0.1)" stroke-width="0.8"/>
+            <rect x="8" y="8" width="16" height="16" fill="none" stroke="rgba(255,120,92,0.24)" stroke-width="1"/>
+            <rect x="60" y="60" width="16" height="16" fill="none" stroke="rgba(255,120,92,0.24)" stroke-width="1"/>
+            <circle cx="42" cy="42" r="4.6" fill="rgba(255,130,95,0.24)"/>
+            <circle cx="20" cy="64" r="2.4" fill="rgba(255,130,95,0.2)"/>
+            <circle cx="64" cy="20" r="2.4" fill="rgba(255,130,95,0.2)"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#${pid})"/>
+      </svg>`;
+    }
+
+    function _spWestern(pid) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <pattern id="${pid}" x="0" y="0" width="96" height="72" patternUnits="userSpaceOnUse">
+            <path d="M0 50 Q24 38 48 50 Q72 62 96 50" fill="none" stroke="rgba(177,121,63,0.2)" stroke-width="1"/>
+            <path d="M0 22 Q24 10 48 22 Q72 34 96 22" fill="none" stroke="rgba(177,121,63,0.16)" stroke-width="0.9"/>
+            <path d="M24 4 L72 4 L72 12 L24 12 Z" fill="none" stroke="rgba(177,121,63,0.2)" stroke-width="0.8"/>
+            <line x1="48" y1="12" x2="48" y2="62" stroke="rgba(177,121,63,0.14)" stroke-width="0.8"/>
+            <circle cx="14" cy="56" r="3.5" fill="rgba(177,121,63,0.2)"/>
+            <circle cx="82" cy="16" r="3.5" fill="rgba(177,121,63,0.2)"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#${pid})"/>
+      </svg>`;
+    }
+
+    function _spThriller(pid) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <pattern id="${pid}" x="0" y="0" width="90" height="90" patternUnits="userSpaceOnUse">
+            <rect x="8" y="8" width="74" height="74" fill="none" stroke="rgba(110,160,220,0.14)" stroke-width="0.9"/>
+            <path d="M8 64 L38 34 L56 52 L82 26" fill="none" stroke="rgba(130,185,245,0.22)" stroke-width="1.2"/>
+            <path d="M8 82 L40 50 L52 62 L82 32" fill="none" stroke="rgba(130,185,245,0.16)" stroke-width="0.9"/>
+            <line x1="18" y1="18" x2="72" y2="18" stroke="rgba(130,185,245,0.18)" stroke-width="0.8"/>
+            <line x1="18" y1="72" x2="72" y2="72" stroke="rgba(130,185,245,0.18)" stroke-width="0.8"/>
+            <circle cx="20" cy="20" r="2.2" fill="rgba(140,192,250,0.22)"/>
+            <circle cx="70" cy="70" r="2.2" fill="rgba(140,192,250,0.22)"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#${pid})"/>
+      </svg>`;
+    }
+
+    function _spAdventure(pid) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <pattern id="${pid}" x="0" y="0" width="92" height="92" patternUnits="userSpaceOnUse">
+            <circle cx="46" cy="46" r="24" fill="none" stroke="rgba(105,190,130,0.18)" stroke-width="1"/>
+            <circle cx="46" cy="46" r="10" fill="rgba(105,190,130,0.16)"/>
+            <path d="M46 10 L52 34 L76 46 L52 58 L46 82 L40 58 L16 46 L40 34 Z" fill="none" stroke="rgba(105,190,130,0.22)" stroke-width="1.1"/>
+            <line x1="46" y1="0" x2="46" y2="92" stroke="rgba(105,190,130,0.1)" stroke-width="0.8"/>
+            <line x1="0" y1="46" x2="92" y2="46" stroke="rgba(105,190,130,0.1)" stroke-width="0.8"/>
+            <circle cx="0" cy="0" r="4.5" fill="rgba(105,190,130,0.12)"/>
+            <circle cx="92" cy="0" r="4.5" fill="rgba(105,190,130,0.12)"/>
+            <circle cx="0" cy="92" r="4.5" fill="rgba(105,190,130,0.12)"/>
+            <circle cx="92" cy="92" r="4.5" fill="rgba(105,190,130,0.12)"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#${pid})"/>
+      </svg>`;
+    }
+
+    function _spDrama(pid) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <pattern id="${pid}" x="0" y="0" width="84" height="84" patternUnits="userSpaceOnUse">
+            <path d="M0 20 Q14 4 28 20 T56 20 T84 20" fill="none" stroke="rgba(180,120,165,0.2)" stroke-width="1"/>
+            <path d="M0 64 Q14 48 28 64 T56 64 T84 64" fill="none" stroke="rgba(180,120,165,0.16)" stroke-width="1"/>
+            <line x1="14" y1="0" x2="14" y2="84" stroke="rgba(180,120,165,0.1)" stroke-width="0.8"/>
+            <line x1="42" y1="0" x2="42" y2="84" stroke="rgba(180,120,165,0.12)" stroke-width="0.8"/>
+            <line x1="70" y1="0" x2="70" y2="84" stroke="rgba(180,120,165,0.1)" stroke-width="0.8"/>
+            <circle cx="42" cy="42" r="5" fill="rgba(180,120,165,0.22)"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#${pid})"/>
+      </svg>`;
+    }
+
+    function _spScifi(pid) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <pattern id="${pid}" x="0" y="0" width="88" height="88" patternUnits="userSpaceOnUse">
+            <path d="M22 8 L66 8 L80 32 L66 56 L22 56 L8 32 Z" fill="none" stroke="rgba(115,205,255,0.2)" stroke-width="1"/>
+            <path d="M22 56 L66 56 L80 80 L66 104 L22 104 L8 80 Z" fill="none" stroke="rgba(115,205,255,0.14)" stroke-width="1"/>
+            <line x1="44" y1="8" x2="44" y2="88" stroke="rgba(115,205,255,0.14)" stroke-width="0.8"/>
+            <line x1="0" y1="44" x2="88" y2="44" stroke="rgba(115,205,255,0.14)" stroke-width="0.8"/>
+            <circle cx="44" cy="44" r="4.2" fill="rgba(130,220,255,0.26)"/>
+            <circle cx="22" cy="32" r="2.2" fill="rgba(130,220,255,0.22)"/>
+            <circle cx="66" cy="32" r="2.2" fill="rgba(130,220,255,0.22)"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#${pid})"/>
+      </svg>`;
+    }
+
+    function _spHorror(pid) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs>
+          <pattern id="${pid}" x="0" y="0" width="82" height="82" patternUnits="userSpaceOnUse">
+            <path d="M8 6 L20 34 L14 58 L25 78" fill="none" stroke="rgba(180,56,76,0.22)" stroke-width="1.1" stroke-linecap="round"/>
+            <path d="M30 2 L42 28 L36 54 L46 80" fill="none" stroke="rgba(180,56,76,0.18)" stroke-width="1.1" stroke-linecap="round"/>
+            <path d="M56 4 L66 30 L62 56 L72 80" fill="none" stroke="rgba(180,56,76,0.2)" stroke-width="1.1" stroke-linecap="round"/>
+            <line x1="0" y1="22" x2="82" y2="14" stroke="rgba(180,56,76,0.08)" stroke-width="0.9"/>
+            <line x1="0" y1="64" x2="82" y2="54" stroke="rgba(180,56,76,0.08)" stroke-width="0.9"/>
+            <circle cx="18" cy="42" r="2.4" fill="rgba(180,56,76,0.2)"/>
+            <circle cx="60" cy="42" r="2.4" fill="rgba(180,56,76,0.2)"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#${pid})"/>
+      </svg>`;
+    }
+
     const SCREEN_PATTERN_FNS = {
       noir: _spNoir, gothic: _spGothic, space: _spSpace,
       samurai: _spSamurai, cyberpunk: _spCyberpunk, romantic: _spRomantic,
+      resistance: _spResistance, western: _spWestern, thriller: _spThriller, adventure: _spAdventure,
+      drama: _spDrama, scifi: _spScifi, horror: _spHorror,
     };
 
     function applyScreenTexture(key) {

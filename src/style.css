@@ -125,6 +125,104 @@
   --loading-accent: #ffd6e4;
   --loading-accent-soft: rgba(255, 214, 228, 0.66);
 }
+.genre-resistance {
+  --bg-primary:    #120c0b;
+  --bg-secondary:  #1f1412;
+  --color-primary: #ff6e58;
+  --color-text:    #ffd9c9;
+  --color-muted:   #9e6d60;
+  --color-bdr:     rgba(255,110,88,0.22);
+  --color-hvr:     rgba(255,110,88,0.12);
+  --glow-color:    rgba(255,110,88,0.38);
+  --overlay-tint:  28,10,6;
+  --img-filter:    saturate(1.15) contrast(1.1) brightness(0.9) sepia(0.2);
+  --loading-accent: #ff9f82;
+  --loading-accent-soft: rgba(255, 159, 130, 0.66);
+}
+.genre-western {
+  --bg-primary:    #21150d;
+  --bg-secondary:  #2d1d11;
+  --color-primary: #d79a4c;
+  --color-text:    #f0d8b5;
+  --color-muted:   #8f6a46;
+  --color-bdr:     rgba(215,154,76,0.22);
+  --color-hvr:     rgba(215,154,76,0.11);
+  --glow-color:    rgba(215,154,76,0.34);
+  --overlay-tint:  30,16,6;
+  --img-filter:    sepia(0.36) saturate(1.04) brightness(0.92) contrast(1.05);
+  --loading-accent: #f2c27f;
+  --loading-accent-soft: rgba(242, 194, 127, 0.66);
+}
+.genre-thriller {
+  --bg-primary:    #09111a;
+  --bg-secondary:  #111c27;
+  --color-primary: #6eb3f7;
+  --color-text:    #c6e0f9;
+  --color-muted:   #5a7898;
+  --color-bdr:     rgba(110,179,247,0.22);
+  --color-hvr:     rgba(110,179,247,0.1);
+  --glow-color:    rgba(110,179,247,0.36);
+  --overlay-tint:  6,16,30;
+  --img-filter:    saturate(0.95) brightness(0.88) contrast(1.12);
+  --loading-accent: #9ed3ff;
+  --loading-accent-soft: rgba(158, 211, 255, 0.66);
+}
+.genre-adventure {
+  --bg-primary:    #0f1f12;
+  --bg-secondary:  #1a2d1f;
+  --color-primary: #7dcf74;
+  --color-text:    #d9f1ce;
+  --color-muted:   #6b8f63;
+  --color-bdr:     rgba(125,207,116,0.22);
+  --color-hvr:     rgba(125,207,116,0.11);
+  --glow-color:    rgba(125,207,116,0.36);
+  --overlay-tint:  10,22,10;
+  --img-filter:    saturate(1.04) brightness(0.9) contrast(1.06);
+  --loading-accent: #b5f1a2;
+  --loading-accent-soft: rgba(181, 241, 162, 0.66);
+}
+.genre-drama {
+  --bg-primary:    #20121f;
+  --bg-secondary:  #2c1a2b;
+  --color-primary: #c58ab6;
+  --color-text:    #f0d4ea;
+  --color-muted:   #8f6f88;
+  --color-bdr:     rgba(197,138,182,0.22);
+  --color-hvr:     rgba(197,138,182,0.11);
+  --glow-color:    rgba(197,138,182,0.34);
+  --overlay-tint:  28,12,28;
+  --img-filter:    saturate(0.96) brightness(0.92) contrast(1.05);
+  --loading-accent: #eec1de;
+  --loading-accent-soft: rgba(238, 193, 222, 0.66);
+}
+.genre-scifi {
+  --bg-primary:    #061521;
+  --bg-secondary:  #0f2233;
+  --color-primary: #6dd7ff;
+  --color-text:    #cceefe;
+  --color-muted:   #5e90ac;
+  --color-bdr:     rgba(109,215,255,0.22);
+  --color-hvr:     rgba(109,215,255,0.1);
+  --glow-color:    rgba(109,215,255,0.36);
+  --overlay-tint:  6,18,30;
+  --img-filter:    saturate(1.1) brightness(0.88) contrast(1.1);
+  --loading-accent: #a9eeff;
+  --loading-accent-soft: rgba(169, 238, 255, 0.66);
+}
+.genre-horror {
+  --bg-primary:    #13070e;
+  --bg-secondary:  #1d0e17;
+  --color-primary: #d65d78;
+  --color-text:    #f3d0da;
+  --color-muted:   #8f5b6a;
+  --color-bdr:     rgba(214,93,120,0.24);
+  --color-hvr:     rgba(214,93,120,0.12);
+  --glow-color:    rgba(214,93,120,0.4);
+  --overlay-tint:  22,6,14;
+  --img-filter:    saturate(0.88) brightness(0.82) contrast(1.12);
+  --loading-accent: #f6a0b6;
+  --loading-accent-soft: rgba(246, 160, 182, 0.66);
+}
 
 /* ─── BASE ─── */
 html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -1776,6 +1874,120 @@ body {
 .genre-space .image-panel::before {
   content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 42%, rgba(0,0,30,0.55) 100%);
+}
+
+/* Resistance: warning glow + worn scan mesh */
+.genre-resistance .image-panel::before {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 12% 82%, rgba(255, 92, 74, 0.24) 0%, transparent 48%),
+    radial-gradient(ellipse at 84% 14%, rgba(255, 140, 115, 0.18) 0%, transparent 52%),
+    radial-gradient(ellipse at center, transparent 38%, rgba(0, 0, 0, 0.72) 100%);
+}
+.genre-resistance .image-panel::after {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 120, 92, 0.028) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(-45deg, rgba(255, 90, 74, 0.022) 0 2px, transparent 2px 9px);
+}
+
+/* Western: dust haze + sunfade */
+.genre-western .image-panel::before {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(130, 78, 32, 0.2) 0%, rgba(70, 30, 8, 0.08) 55%, rgba(35, 16, 6, 0.55) 100%),
+    radial-gradient(ellipse at 72% 12%, rgba(240, 188, 120, 0.2) 0%, transparent 48%),
+    radial-gradient(ellipse at center, transparent 46%, rgba(0, 0, 0, 0.5) 100%);
+}
+.genre-western .story-text {
+  text-shadow: 0 0 10px rgba(215, 154, 76, 0.16), 0 1px 14px rgba(0, 0, 0, 0.9);
+}
+
+/* Thriller: cold spotlight sweep */
+.genre-thriller .image-panel::before {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 36%, rgba(2, 8, 16, 0.78) 100%),
+    linear-gradient(132deg, transparent 24%, rgba(145, 205, 255, 0.11) 45%, transparent 66%);
+  animation: thrillerSweep 8s linear infinite;
+}
+.genre-thriller .image-panel::after {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent, transparent 3px,
+    rgba(150, 208, 255, 0.022) 3px, rgba(150, 208, 255, 0.022) 5px
+  );
+}
+@keyframes thrillerSweep {
+  0% { transform: translateX(-8%); }
+  50% { transform: translateX(8%); }
+  100% { transform: translateX(-8%); }
+}
+
+/* Adventure: horizon glow + subtle foliage tint */
+.genre-adventure .image-panel::before {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 10%, rgba(170, 235, 150, 0.16) 0%, transparent 50%),
+    radial-gradient(ellipse at 22% 90%, rgba(80, 140, 74, 0.18) 0%, transparent 48%),
+    radial-gradient(ellipse at 78% 88%, rgba(80, 140, 74, 0.15) 0%, transparent 52%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.62) 100%);
+}
+
+/* Drama: stage-light wash */
+.genre-drama .image-panel::before {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 14%, rgba(229, 172, 213, 0.18) 0%, transparent 48%),
+    linear-gradient(180deg, rgba(64, 30, 60, 0.22) 0%, rgba(24, 12, 26, 0.12) 60%, rgba(8, 4, 10, 0.45) 100%),
+    radial-gradient(ellipse at center, transparent 42%, rgba(0, 0, 0, 0.56) 100%);
+}
+.genre-drama .story-text {
+  text-shadow: 0 0 12px rgba(197, 138, 182, 0.18), 0 1px 16px rgba(0, 0, 0, 0.88);
+}
+
+/* Sci-Fi: hologrid + beam sweep */
+.genre-scifi .image-panel::before {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background:
+    linear-gradient(125deg, transparent 22%, rgba(130, 224, 255, 0.12) 46%, transparent 70%),
+    radial-gradient(ellipse at center, transparent 38%, rgba(2, 10, 22, 0.68) 100%);
+  animation: scifiSweep 9s linear infinite;
+}
+.genre-scifi .image-panel::after {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(130, 224, 255, 0.026) 3px 5px),
+    repeating-linear-gradient(90deg, transparent 0 26px, rgba(130, 224, 255, 0.02) 26px 28px);
+}
+@keyframes scifiSweep {
+  0% { transform: translateX(-9%); }
+  50% { transform: translateX(9%); }
+  100% { transform: translateX(-9%); }
+}
+
+/* Horror: blood-vignette + pulse flicker */
+.genre-horror .image-panel::before {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 18% 86%, rgba(150, 28, 58, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 82% 20%, rgba(130, 24, 52, 0.16) 0%, transparent 52%),
+    radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.78) 100%);
+  animation: horrorPulse 4.2s ease-in-out infinite;
+}
+.genre-horror .image-panel::after {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  background: repeating-linear-gradient(
+    6deg,
+    transparent 0 7px,
+    rgba(190, 70, 100, 0.02) 7px 9px
+  );
+}
+@keyframes horrorPulse {
+  0%, 100% { opacity: 0.92; }
+  45% { opacity: 0.76; }
+  55% { opacity: 0.86; }
 }
 
 /* Samurai: light mode needs adjustments for overlay readability */
