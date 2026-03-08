@@ -2661,6 +2661,38 @@
     const MUSIC_VOL   = 0.22; // ambient volume — low enough not to overpower story text
     const MUSIC_XFADE = 1.5;  // crossfade duration in seconds
     const AUDIO_UNLOCK_EVENTS = ['touchstart', 'pointerdown', 'click', 'keydown'];
+    const LOCAL_SOUNDTRACKS = {
+      'Court Intrigue': ['Courtly Intrigue.ogg', 'Suspensions at Court.ogg'],
+      'Cyberpunk': ['Neon Undercurrent.ogg', 'Neon Veins.ogg'],
+      'Dark Fantasy': ['Awakening of the Black Crown.ogg', 'Rise of the Forsworn Crown.ogg'],
+      'Detective Thriller': ['Shadow Between Footsteps.ogg', 'Shadow in 7_8.ogg'],
+      'Espionage Thriller': ['Double Agent in a Three-Piece Suit.ogg', 'Midnight Cable.ogg'],
+      'Forbidden Romance': ['Under Glass Skies.ogg', 'Unfinished Spell.ogg'],
+      'Gothic Horror': ['Cathedral of the Unsaid.ogg', 'Victorian Sepulcher.ogg'],
+      'Heist': ['Midnight Perfect Crime.ogg', 'Midnight Velvet Job.ogg'],
+      'High Fantasy': ['Crown of Starlight.ogg', 'Crown of the Sky.ogg'],
+      'Historical Drama': ['Crown of Old Rooms.ogg', 'Regal Echoes of Time.ogg'],
+      'Lost Civilization Adventure': ['Into the Amber Horizon.ogg', 'Secrets In The Stone.ogg'],
+      'Military Sci-Fi': ['March of One.ogg', 'Orbital Siege.ogg'],
+      'Monster Hunter Adventure': ['Feral Pursuit.ogg', 'Relentless Hunt.ogg'],
+      'Mythic Adventure': ['Banner of the Starlit King.ogg', 'Legend’s Dawn.ogg'],
+      'Noir Mystery': ['Cobblestone Rain.ogg', 'Rain on Old Stone.ogg'],
+      'Occult Mystery': ['Veil of the Abyss.ogg', 'Veil of the Unspoken.ogg'],
+      'Political Thriller': ['Eyes in the Walls.ogg', 'Pulse in the Shadows.ogg'],
+      'Post-Apocalyptic': ['Ashes Learn Our Names.ogg', 'Ruin Remembers.ogg'],
+      'Resistance': ['Ashes Under Concrete.ogg', 'March In The Dark.ogg'],
+      'Romantic Drama': ['Breath Between Our Hands.ogg', 'Open Arms, Empty Room.ogg'],
+      'Samurai Epic': ['Blade in Still Water.ogg', 'Unshaken Mountain.ogg'],
+      'School Drama': ['Polaroids in July.ogg', 'Seasons on Our Sleeves.ogg'],
+      'Space Opera': ['Celestial Gateways.ogg', 'Pillars of the Unknown.ogg'],
+      'Steampunk Intrigue': ['Clockwork In The Halls.ogg', 'Gears in the Gaslight.ogg'],
+      'Superhero Saga': ['Rise Over Ruins.ogg', 'Trial by Dawn.ogg'],
+      'Supernatural Mystery': ['Hidden Corridor.ogg', 'Whispers Beyond The Veil.ogg'],
+      'Survival Horror': ['Breath in the Dark.ogg', 'Pressure In The Walls.ogg'],
+      'Time Travel Adventure': ['Clockwork Ghost in the Circuit.ogg', 'Paradox In The Slipstream.ogg'],
+      'Urban Fantasy': ['Midnight Between Worlds.ogg', 'Velvet City Secrets.ogg'],
+      'Western Frontier': ['Dust On The Horizon.ogg', 'Dust in the Distance.ogg'],
+    };
 
     function initAudioCtx() {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -2710,6 +2742,15 @@
 
     function audioUnlockHandler() {
       void ensureAudioPlaybackReady();
+    }
+
+    function randomItem(items) {
+      if (!Array.isArray(items) || items.length === 0) return null;
+      return items[Math.floor(Math.random() * items.length)];
+    }
+
+    function assetUrl(path) {
+      return String(path).split('/').map(part => encodeURIComponent(part)).join('/');
     }
 
     function decodeMusicBuffer(ab) {
@@ -2816,7 +2857,7 @@
     // Fetch + decode one music clip from Lambda
     async function fetchMusicClip() {
       const result = await callLambda(
-        { action: 'generateMusic', genre: S.genre, era: S.era, archetype: S.archetype },
+        { action: 'generateMusicx', genre: S.genre, era: S.era, archetype: S.archetype },
         60000 // 60 s — Lyria buffers 18 s of audio
       );
       if (!result.success || !result.audio) throw new Error(result.error || 'No audio');
@@ -2825,6 +2866,35 @@
       const view = new Uint8Array(ab);
       for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
       return decodeMusicBuffer(ab);
+    }
+
+    async function fetchFallbackMusicClip() {
+      const options = LOCAL_SOUNDTRACKS[S.genre] || [];
+      const chosen = randomItem(options);
+      if (!chosen) throw new Error(`No local soundtrack found for "${S.genre || 'Unknown'}".`);
+
+      const path = assetUrl(`soundtrack/${S.genre}/${chosen}`);
+      const res = await fetch(path, { cache: 'force-cache' });
+      if (!res.ok) throw new Error(`Fallback soundtrack HTTP ${res.status}`);
+      const ab = await res.arrayBuffer();
+      const buf = await decodeMusicBuffer(ab);
+      return { buf, chosen };
+    }
+
+    async function startMusicLoop(firstBuf) {
+      // Master gain: constant volume; per-source fadeGains handle crossfades
+      MUS.gain = MUS.ctx.createGain();
+      MUS.gain.gain.setValueAtTime(MUS.muted ? 0 : MUSIC_VOL, MUS.ctx.currentTime);
+      MUS.gain.connect(MUS.ctx.destination);
+
+      MUS.buffers = [firstBuf];
+      MUS.ready   = true;
+      MUS.loading = false;
+      setMusicBtn(MUS.muted ? 'off' : 'on');
+
+      // Start looping — first iteration's fade-in handles the initial ramp-up
+      await ensureAudioPlaybackReady();
+      scheduleLoopIteration(0, MUS.ctx.currentTime + 0.05);
     }
 
     // Fire-and-forget: fetch 2 more clips in parallel, append as they arrive
@@ -2846,32 +2916,34 @@
 
       try {
         const firstBuf = await fetchMusicClip();
-
-        // Master gain: constant volume; per-source fadeGains handle crossfades
-        MUS.gain = MUS.ctx.createGain();
-        MUS.gain.gain.setValueAtTime(MUS.muted ? 0 : MUSIC_VOL, MUS.ctx.currentTime);
-        MUS.gain.connect(MUS.ctx.destination);
-
-        MUS.buffers = [firstBuf];
-        MUS.ready   = true;
-        MUS.loading = false;
-        setMusicBtn(MUS.muted ? 'off' : 'on');
-
-        // Start looping — first iteration's fade-in handles the initial ramp-up
-        await ensureAudioPlaybackReady();
-        scheduleLoopIteration(0, MUS.ctx.currentTime + 0.05);
+        await startMusicLoop(firstBuf);
         trackEvent('music_generation_succeeded', gaStoryParams({ clips_loaded: 1 }));
 
         // Fetch 2 more clips in parallel; they slot into rotation as they arrive
         fetchExtraClips();
       } catch (err) {
         console.warn('Background music unavailable:', err.message);
-        MUS.loading = false;
-        setMusicBtn('hidden');
         trackEvent('music_generation_failed', gaStoryParams({
           error_code: gaErrorCode(err),
           error_message: gaSafe(err?.message || err),
         }));
+
+        try {
+          const { buf, chosen } = await fetchFallbackMusicClip();
+          await startMusicLoop(buf);
+          trackEvent('music_fallback_used', gaStoryParams({
+            source: 'local_soundtrack',
+            track_name: gaSafe(chosen.replace(/\.ogg$/i, ''), 80),
+          }));
+        } catch (fallbackErr) {
+          console.warn('Local soundtrack fallback unavailable:', fallbackErr.message);
+          MUS.loading = false;
+          setMusicBtn('hidden');
+          trackEvent('music_fallback_failed', gaStoryParams({
+            error_code: gaErrorCode(fallbackErr),
+            error_message: gaSafe(fallbackErr?.message || fallbackErr),
+          }));
+        }
       }
     }
 
