@@ -28,6 +28,8 @@
   --info-btn-right: 3.6rem;
   --music-btn-right: 6.2rem;
   --hud-btn-right: 8.8rem;
+  --setup-panel-gutter: max(0px, calc((100vw - min(1120px, 96vw)) / 2));
+  --setup-icon-top-offset: 1.2rem;
   --loading-panel-bg-top: rgba(6, 8, 12, 0.62);
   --loading-panel-bg-bottom: rgba(4, 5, 8, 0.86);
   --loading-border: rgba(255, 255, 255, 0.24);
@@ -150,7 +152,7 @@ body {
 .music-btn,
 .hud-btn,
 .home-btn {
-  position: fixed; top: var(--icon-btn-top); z-index: 900;
+  position: fixed; top: calc(var(--icon-btn-top) + var(--setup-icon-top-offset)); z-index: 900;
   width: 36px; height: 36px; border-radius: 50%;
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -172,7 +174,7 @@ body {
 
 /* ─── HOME BUTTON ─── */
 .home-btn {
-  right: var(--home-btn-right);
+  right: calc(var(--home-btn-right) + var(--setup-panel-gutter));
   padding: 0;
 }
 .home-btn svg {
@@ -187,7 +189,7 @@ body {
 
 /* ─── INFO BUTTON ─── */
 .info-btn {
-  right: var(--info-btn-right);
+  right: calc(var(--info-btn-right) + var(--setup-panel-gutter));
   font-size: 1rem; font-style: italic;
   font-family: Georgia, serif;
   line-height: 1;
@@ -202,12 +204,12 @@ body {
 
 /* ─── MUSIC BUTTON ─── */
 .music-btn {
-  right: var(--music-btn-right);
+  right: calc(var(--music-btn-right) + var(--setup-panel-gutter));
   font-size: 1.05rem;
   position: fixed; /* re-state for specificity */
 }
 .hud-btn {
-  right: var(--hud-btn-right);
+  right: calc(var(--hud-btn-right) + var(--setup-panel-gutter));
   font-size: 0.88rem;
   font-family: var(--font-hud);
   letter-spacing: 0.02em;
@@ -1388,7 +1390,7 @@ body {
 /* ── Tactical HUD ── */
 .game-hud {
   position: fixed;
-  top: calc(var(--icon-btn-top) + 36px + 5px);
+  top: calc(var(--icon-btn-top) + 36px + 35px);
   right: var(--hud-btn-right);
   left: auto;
   z-index: 12;
