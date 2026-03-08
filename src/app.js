@@ -299,17 +299,75 @@
       },
     };
     const ENDING_STATUS = {
-      good: {
-        kicker: 'Campaign Cleared',
-        alignment: 'Ascendant',
+      default: {
+        good:    { kicker: 'Fate Sealed',            alignment: 'Ascendant' },
+        neutral: { kicker: 'Balance Held',           alignment: 'Uncertain' },
+        bad:     { kicker: 'Omen Fulfilled',         alignment: 'Fallen' },
       },
-      neutral: {
-        kicker: 'Operation Stabilized',
-        alignment: 'Uncertain',
+      noir: {
+        good:    { kicker: 'Case Closed',            alignment: 'Resolved' },
+        neutral: { kicker: 'Smoke and Mirrors',      alignment: 'Ambiguous' },
+        bad:     { kicker: 'Buried File',            alignment: 'Doomed' },
       },
-      bad: {
-        kicker: 'Mission Compromised',
-        alignment: 'Fallen',
+      horror: {
+        good:    { kicker: 'Dawn Survives',          alignment: 'Sanctified' },
+        neutral: { kicker: 'Night Holds',            alignment: 'Haunted' },
+        bad:     { kicker: 'Darkness Feeds',         alignment: 'Consumed' },
+      },
+      space: {
+        good:    { kicker: 'Starlanes Secure',       alignment: 'Triumphant' },
+        neutral: { kicker: 'Orbit Stabilized',       alignment: 'Precarious' },
+        bad:     { kicker: 'Signal Lost',            alignment: 'Adrift' },
+      },
+      samurai: {
+        good:    { kicker: 'Honor Upheld',           alignment: 'Honored' },
+        neutral: { kicker: 'Duty Endures',           alignment: 'Bound' },
+        bad:     { kicker: 'Name Dishonored',        alignment: 'Broken' },
+      },
+      cyberpunk: {
+        good:    { kicker: 'Protocol Overridden',    alignment: 'Unshackled' },
+        neutral: { kicker: 'System in Truce',        alignment: 'Volatile' },
+        bad:     { kicker: 'Grid Collapse',          alignment: 'Corrupted' },
+      },
+      romantic: {
+        good:    { kicker: 'Hearts Aligned',         alignment: 'Devoted' },
+        neutral: { kicker: 'Love in Limbo',          alignment: 'Longing' },
+        bad:     { kicker: 'Vows Unmade',            alignment: 'Heartbroken' },
+      },
+      resistance: {
+        good:    { kicker: 'Banners Raised',         alignment: 'Liberated' },
+        neutral: { kicker: 'Ceasefire Holds',        alignment: 'Defiant' },
+        bad:     { kicker: 'Cells Silenced',         alignment: 'Subjugated' },
+      },
+      western: {
+        good:    { kicker: 'Trail Won',              alignment: 'Redeemed' },
+        neutral: { kicker: 'Dust Settles',           alignment: 'Weathered' },
+        bad:     { kicker: 'Last Stand Fails',       alignment: 'Forsaken' },
+      },
+      thriller: {
+        good:    { kicker: 'Threat Neutralized',     alignment: 'In Control' },
+        neutral: { kicker: 'Crisis Contained',       alignment: 'Unsteady' },
+        bad:     { kicker: 'Operation Blown',        alignment: 'Compromised' },
+      },
+      adventure: {
+        good:    { kicker: 'Quest Fulfilled',        alignment: 'Legendary' },
+        neutral: { kicker: 'Map Incomplete',         alignment: 'Restless' },
+        bad:     { kicker: 'Expedition Lost',        alignment: 'Cursed' },
+      },
+      drama: {
+        good:    { kicker: 'Arc Resolved',           alignment: 'Transformed' },
+        neutral: { kicker: 'Ties Unsettled',         alignment: 'Conflicted' },
+        bad:     { kicker: 'Curtain in Ruin',        alignment: 'Shattered' },
+      },
+      scifi: {
+        good:    { kicker: 'Future Secured',         alignment: 'Evolved' },
+        neutral: { kicker: 'Timeline Holding',       alignment: 'Unstable' },
+        bad:     { kicker: 'System Failure',         alignment: 'Collapsed' },
+      },
+      gothic: {
+        good:    { kicker: 'Curse Lifted',           alignment: 'Redeemed' },
+        neutral: { kicker: 'Pact Unbroken',          alignment: 'Twilit' },
+        bad:     { kicker: 'Shadows Crowned',        alignment: 'Damned' },
       },
     };
 
@@ -3217,6 +3275,13 @@
       return genreCopy[type] || ENDING_COPY.default[type] || ENDING_COPY.default.good;
     }
 
+    function endingStatusFor(type) {
+      const statusType = (type === 'neutral' || type === 'bad') ? type : 'good';
+      const themeKey = GENRE_CFG[S.genre]?.key || 'default';
+      const themeStatus = ENDING_STATUS[themeKey] || ENDING_STATUS.default;
+      return themeStatus[statusType] || ENDING_STATUS.default[statusType] || ENDING_STATUS.default.good;
+    }
+
     function formatRuntime(ms) {
       const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
       const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
@@ -3257,12 +3322,13 @@
       const runMs = S.storyRunStartedAt ? (Date.now() - S.storyRunStartedAt) : 0;
       const meta = gaPageMeta(S.currentPageId || '');
       const path = meta.path || type || 'good';
+      const status = endingStatusFor(type);
       return {
-        kicker: ENDING_STATUS[type]?.kicker || ENDING_STATUS.good.kicker,
+        kicker: status.kicker,
         route: routeLabel(S.genre, S.archetype, path),
         decisions: `${S.choicesMade.length}/${maxDecisions}`,
         runtime: formatRuntime(runMs),
-        alignment: `${ENDING_STATUS[type]?.alignment || ENDING_STATUS.good.alignment} • ${rank}`,
+        alignment: `${status.alignment} • ${rank}`,
         score,
         rank,
         recap: `${tally.good} ascendant • ${tally.neutral} balanced • ${tally.bad} fallen decisions`,
