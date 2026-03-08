@@ -661,6 +661,66 @@
       scifi:     '#728b94',
       horror:    '#6f4c57',
     };
+    const PLANETS_BASE_COLORS = {
+      noir:      '#31436d',
+      gothic:    '#3b315e',
+      space:     '#2a4b86',
+      samurai:   '#5a4d7f',
+      cyberpunk: '#245d82',
+      romantic:  '#5b4f74',
+      resistance:'#514061',
+      western:   '#6b5471',
+      thriller:  '#2f4f6b',
+      adventure: '#2e6073',
+      drama:     '#5a4865',
+      scifi:     '#2f5f9a',
+      horror:    '#432d52',
+    };
+    const AURORA_BASE_COLORS = {
+      noir:      '#2f456e',
+      gothic:    '#423a68',
+      space:     '#2b518f',
+      samurai:   '#5a5c86',
+      cyberpunk: '#1f6c88',
+      romantic:  '#624f7f',
+      resistance:'#544b72',
+      western:   '#736180',
+      thriller:  '#325a72',
+      adventure: '#2c6a78',
+      drama:     '#634f73',
+      scifi:     '#2f67a4',
+      horror:    '#503762',
+    };
+    const ORGANIC_BASE_COLORS = {
+      noir:      '#4f5b74',
+      gothic:    '#5a4d70',
+      space:     '#3e6191',
+      samurai:   '#6b5d7f',
+      cyberpunk: '#2f7b86',
+      romantic:  '#775f7f',
+      resistance:'#6d596f',
+      western:   '#82636d',
+      thriller:  '#4b6b7a',
+      adventure: '#3f7d70',
+      drama:     '#7b5f77',
+      scifi:     '#3d76a8',
+      horror:    '#5f4b68',
+    };
+    const TEMPLES_BASE_COLORS = {
+      noir:      '#6a667d',
+      gothic:    '#5e5575',
+      space:     '#566e93',
+      samurai:   '#7d6f83',
+      cyberpunk: '#4f7e8a',
+      romantic:  '#876a7d',
+      resistance:'#756675',
+      western:   '#8c7767',
+      thriller:  '#607283',
+      adventure: '#5e8272',
+      drama:     '#846880',
+      scifi:     '#517aa6',
+      horror:    '#6b576c',
+    };
 
     function _seedStr(str) {
       let h = 0;
@@ -1697,14 +1757,850 @@
 </svg>`;
     }
 
+    function generatePlanetSSvg(genre, imagePrompt) {
+      const themeKey = (GENRE_CFG[genre] || {}).key || 'space';
+      const seed = _seedStr(`planets:${imagePrompt || genre || 'planets'}`);
+      const baseColor = new Col(PLANETS_BASE_COLORS[themeKey] || '#2c4a82');
+      const rng = _mkRng(seed);
+
+      const W = 600, H = 300;
+      const sid = seed.toString(36);
+      const skyGradId = `psSky${sid}`;
+      const groundBackGradId = `psGBack${sid}`;
+      const groundFrontGradId = `psGFront${sid}`;
+      const glowId = `psGlow${sid}`;
+      const horizonHazeId = `psHaze${sid}`;
+      const gasClipId = `psGasClip${sid}`;
+      const gasGradId = `psGas${sid}`;
+      const ringPlanetGradId = `psRingPlanet${sid}`;
+      const ringGradId = `psRing${sid}`;
+
+      const rand = (a = 0, b = 1) => a + rng() * (b - a);
+      const chance = (p) => rng() < p;
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+      function hashInt(n) {
+        let x = Math.imul((n | 0) ^ seed, 2246822519);
+        x ^= x >>> 13;
+        x = Math.imul(x, 3266489917);
+        x ^= x >>> 16;
+        return (x >>> 0) / 4294967295;
+      }
+      function noise1D(x) {
+        const i = Math.floor(x);
+        const f = x - i;
+        const u = f * f * (3 - 2 * f);
+        return hashInt(i) * (1 - u) + hashInt(i + 1) * u;
+      }
+      function fbm(x, octaves = 4) {
+        let sum = 0;
+        let amp = 0.55;
+        let freq = 1;
+        let norm = 0;
+        for (let o = 0; o < octaves; o++) {
+          sum += noise1D(x * freq) * amp;
+          norm += amp;
+          amp *= 0.5;
+          freq *= 2.07;
+        }
+        return norm > 0 ? sum / norm : 0;
+      }
+
+      function addPlanetGradient(id, rotateA, rotateB, sat = 0.28, lightA = 0.7, lightB = 0.25) {
+        defs.push(`<radialGradient id="${id}" cx="33%" cy="28%" r="78%">
+      <stop offset="0%" stop-color="${baseColor.rotate(rotateA).saturate(sat).lighten(lightA).string()}"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(rotateB).desaturate(0.12).darken(lightB).string()}"/>
+    </radialGradient>`);
+      }
+
+      const nightMode = chance(0.62);
+      const horizonY = rand(146, 186);
+      const lightFromLeft = chance(0.56);
+      const skyTop = nightMode
+        ? baseColor.rotate(210).desaturate(0.1).darken(0.72).string()
+        : baseColor.rotate(190).desaturate(0.05).darken(0.45).string();
+      const skyMid = nightMode
+        ? baseColor.rotate(185).desaturate(0.08).darken(0.58).string()
+        : baseColor.rotate(155).saturate(0.08).darken(0.25).string();
+      const skyLow = nightMode
+        ? baseColor.rotate(160).desaturate(0.06).darken(0.4).string()
+        : baseColor.rotate(120).saturate(0.08).darken(0.08).string();
+
+      const defs = [];
+      const stars = [];
+      const skyFx = [];
+      const farPlanets = [];
+      const gasGiant = [];
+      const ringPlanet = [];
+      const horizonPlanets = [];
+      const alignment = [];
+      const dunesBack = [];
+      const dunesFront = [];
+
+      defs.push(`<linearGradient id="${skyGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${skyTop}"/>
+      <stop offset="60%" stop-color="${skyMid}"/>
+      <stop offset="100%" stop-color="${skyLow}"/>
+    </linearGradient>`);
+      defs.push(`<filter id="${glowId}" x="-50%" y="-50%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="${nightMode ? '1.9' : '1.2'}" result="soft"/>
+      <feMerge>
+        <feMergeNode in="soft"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>`);
+      defs.push(`<linearGradient id="${horizonHazeId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${baseColor.rotate(180).desaturate(0.15).lighten(0.85).string()}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(180).desaturate(0.15).lighten(0.85).string()}" stop-opacity="${nightMode ? '0.18' : '0.28'}"/>
+    </linearGradient>`);
+      defs.push(`<linearGradient id="${groundBackGradId}" x1="${lightFromLeft ? '0%' : '100%'}" y1="0%" x2="${lightFromLeft ? '100%' : '0%'}" y2="100%">
+      <stop offset="0%" stop-color="${baseColor.rotate(78).saturate(0.08).lighten(0.22).string()}"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(58).desaturate(0.1).darken(0.34).string()}"/>
+    </linearGradient>`);
+      defs.push(`<linearGradient id="${groundFrontGradId}" x1="${lightFromLeft ? '0%' : '100%'}" y1="0%" x2="${lightFromLeft ? '100%' : '0%'}" y2="100%">
+      <stop offset="0%" stop-color="${baseColor.rotate(70).saturate(0.1).lighten(0.12).string()}"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(50).desaturate(0.08).darken(0.5).string()}"/>
+    </linearGradient>`);
+
+      if (nightMode || chance(0.68)) {
+        const starCount = (nightMode ? 130 : 70) + Math.floor(rand(0, nightMode ? 120 : 80));
+        const starColor = baseColor.rotate(175).desaturate(0.5).lighten(1.7).string();
+        for (let i = 0; i < starCount; i++) {
+          const x = rand(0, W);
+          const y = rand(0, H * 0.74);
+          const r = chance(0.84) ? rand(0.25, 1.2) : rand(1.0, 1.9);
+          const op = rand(0.2, 0.92);
+          stars.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${starColor}" fill-opacity="${op.toFixed(2)}" filter="url(#${glowId})"/>`);
+        }
+      }
+
+      const alignCount = 4 + Math.floor(rand(0, 4));
+      const alignY = rand(48, 98);
+      const alignStart = rand(30, 94);
+      const alignStep = rand(66, 90);
+      const alignEnd = alignStart + alignStep * (alignCount - 1);
+      alignment.push(`<line x1="${alignStart.toFixed(1)}" y1="${alignY.toFixed(1)}" x2="${alignEnd.toFixed(1)}" y2="${(alignY + rand(-5, 5)).toFixed(1)}" stroke="${baseColor.rotate(170).desaturate(0.3).lighten(1.2).string()}" stroke-opacity="${nightMode ? '0.24' : '0.16'}" stroke-width="1" stroke-dasharray="4 6"/>`);
+      for (let i = 0; i < alignCount; i++) {
+        const x = alignStart + alignStep * i + rand(-4, 4);
+        const y = alignY + rand(-6, 6);
+        const r = rand(2.2, 5.8) * (0.86 + i * 0.05);
+        const gid = `psAlign${sid}${i}`;
+        addPlanetGradient(gid, rand(20, 110), rand(-60, 40), 0.2, 0.55, 0.35);
+        alignment.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="url(#${gid})" fill-opacity="${nightMode ? '0.95' : '0.82'}"/>`);
+      }
+
+      const gasX = rand(W * 0.2, W * 0.8);
+      const gasY = rand(H * 0.18, H * 0.42);
+      const gasR = rand(46, 80);
+      defs.push(`<radialGradient id="${gasGradId}" cx="34%" cy="30%" r="78%">
+      <stop offset="0%" stop-color="${baseColor.rotate(32).saturate(0.24).lighten(0.82).string()}"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(-18).desaturate(0.06).darken(0.12).string()}"/>
+    </radialGradient>`);
+      defs.push(`<clipPath id="${gasClipId}">
+      <circle cx="${gasX.toFixed(1)}" cy="${gasY.toFixed(1)}" r="${gasR.toFixed(1)}"/>
+    </clipPath>`);
+      gasGiant.push(`<circle cx="${gasX.toFixed(1)}" cy="${gasY.toFixed(1)}" r="${gasR.toFixed(1)}" fill="url(#${gasGradId})"/>`);
+      const bandCount = 6 + Math.floor(rand(0, 6));
+      for (let i = 0; i < bandCount; i++) {
+        const t = bandCount > 1 ? i / (bandCount - 1) : 0.5;
+        const by = gasY - gasR + t * gasR * 2 + rand(-3.2, 3.2);
+        const bh = rand(5, 13) * (1 - Math.abs(t - 0.5) * 0.5);
+        const col = baseColor.rotate(18 + rand(-20, 18)).saturate(0.08 + rand(0, 0.22)).lighten(0.12 + rand(0, 0.34)).string();
+        gasGiant.push(`<ellipse cx="${gasX.toFixed(1)}" cy="${by.toFixed(1)}" rx="${(gasR * rand(1.02, 1.26)).toFixed(1)}" ry="${bh.toFixed(1)}" fill="${col}" fill-opacity="${rand(0.22, 0.58).toFixed(2)}" clip-path="url(#${gasClipId})"/>`);
+      }
+      gasGiant.push(`<circle cx="${(gasX - gasR * 0.2).toFixed(1)}" cy="${(gasY - gasR * 0.2).toFixed(1)}" r="${(gasR * 0.15).toFixed(1)}" fill="${baseColor.rotate(28).lighten(1.2).string()}" fill-opacity="0.18"/>`);
+
+      const ringR = rand(22, 38);
+      const ringX = clamp(gasX + (gasX < W * 0.5 ? rand(120, 200) : -rand(120, 200)), ringR + 26, W - ringR - 26);
+      const ringY = clamp(gasY + rand(-16, 18), ringR + 24, H * 0.64);
+      const ringTilt = rand(-26, 26);
+      defs.push(`<radialGradient id="${ringPlanetGradId}" cx="34%" cy="30%" r="78%">
+      <stop offset="0%" stop-color="${baseColor.rotate(64).saturate(0.3).lighten(0.95).string()}"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(18).desaturate(0.06).darken(0.18).string()}"/>
+    </radialGradient>`);
+      defs.push(`<linearGradient id="${ringGradId}" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${baseColor.rotate(165).desaturate(0.2).lighten(1.18).string()}" stop-opacity="0.15"/>
+      <stop offset="50%" stop-color="${baseColor.rotate(165).desaturate(0.2).lighten(1.18).string()}" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(165).desaturate(0.2).lighten(1.18).string()}" stop-opacity="0.15"/>
+    </linearGradient>`);
+      ringPlanet.push(`<ellipse cx="${ringX.toFixed(1)}" cy="${ringY.toFixed(1)}" rx="${(ringR * 1.92).toFixed(1)}" ry="${(ringR * 0.48).toFixed(1)}" transform="rotate(${ringTilt.toFixed(1)} ${ringX.toFixed(1)} ${ringY.toFixed(1)})" fill="none" stroke="url(#${ringGradId})" stroke-width="${rand(2.4, 4.2).toFixed(2)}" stroke-opacity="0.42"/>`);
+      ringPlanet.push(`<circle cx="${ringX.toFixed(1)}" cy="${ringY.toFixed(1)}" r="${ringR.toFixed(1)}" fill="url(#${ringPlanetGradId})"/>`);
+      ringPlanet.push(`<path d="M ${(ringX - ringR * 1.1).toFixed(1)} ${(ringY + ringR * 0.08).toFixed(1)} Q ${ringX.toFixed(1)} ${(ringY + ringR * 0.62).toFixed(1)} ${(ringX + ringR * 1.1).toFixed(1)} ${(ringY + ringR * 0.08).toFixed(1)}" fill="none" stroke="url(#${ringGradId})" stroke-width="${rand(1.8, 3.1).toFixed(2)}" stroke-linecap="round" transform="rotate(${ringTilt.toFixed(1)} ${ringX.toFixed(1)} ${ringY.toFixed(1)})"/>`);
+
+      const farPlanetCount = 2 + Math.floor(rand(0, 3));
+      for (let i = 0; i < farPlanetCount; i++) {
+        const x = rand(28, W - 28);
+        const y = rand(20, horizonY * 0.62);
+        const r = rand(9, 24);
+        const gid = `psFar${sid}${i}`;
+        addPlanetGradient(gid, rand(18, 140), rand(-60, 40), 0.18 + rand(0, 0.22), 0.62 + rand(0, 0.28), 0.22 + rand(0, 0.28));
+        farPlanets.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${gid})" fill-opacity="${rand(0.75, 0.96).toFixed(2)}"/>`);
+        if (chance(0.38)) {
+          farPlanets.push(`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${(r * rand(1.35, 2.05)).toFixed(1)}" ry="${(r * rand(0.26, 0.55)).toFixed(1)}" transform="rotate(${rand(-36, 36).toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" fill="none" stroke="${baseColor.rotate(170).lighten(1.0).string()}" stroke-opacity="0.28" stroke-width="1"/>`);
+        }
+      }
+
+      const horizonCount = 3 + Math.floor(rand(0, 3));
+      const horizonXs = Array.from({ length: horizonCount }, () => rand(28, W - 28)).sort((a, b) => a - b);
+      for (let i = 0; i < horizonCount; i++) {
+        const x = horizonXs[i];
+        const y = horizonY + rand(-7, 8);
+        const r = rand(10, 28);
+        const gid = `psHor${sid}${i}`;
+        addPlanetGradient(gid, rand(10, 120), rand(-80, 20), 0.12 + rand(0, 0.2), 0.5 + rand(0, 0.24), 0.3 + rand(0, 0.24));
+        horizonPlanets.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${gid})" fill-opacity="${rand(0.68, 0.88).toFixed(2)}"/>`);
+      }
+
+      const dune1 = (x) => horizonY + 8 + Math.sin((x + rand(0, 600)) * rand(0.008, 0.016)) * rand(10, 20) + (fbm((x + rand(0, 300)) * 0.01, 4) - 0.5) * rand(12, 24);
+      const dune2 = (x) => horizonY + 34 + Math.sin((x + rand(0, 700)) * rand(0.008, 0.017)) * rand(12, 24) + (fbm((x + rand(0, 300)) * 0.012, 4) - 0.5) * rand(16, 28);
+      let d1 = `M 0 ${dune1(0).toFixed(1)} `;
+      let d2 = `M 0 ${dune2(0).toFixed(1)} `;
+      for (let x = 0; x <= W; x += 12) {
+        d1 += `L ${x} ${dune1(x).toFixed(1)} `;
+        d2 += `L ${x} ${dune2(x).toFixed(1)} `;
+      }
+      d1 += `L ${W} ${H} L 0 ${H} Z`;
+      d2 += `L ${W} ${H} L 0 ${H} Z`;
+      dunesBack.push(`<path d="${d1}" fill="url(#${groundBackGradId})" fill-opacity="${nightMode ? '0.64' : '0.74'}"/>`);
+      dunesFront.push(`<path d="${d2}" fill="url(#${groundFrontGradId})" fill-opacity="${nightMode ? '0.86' : '0.94'}"/>`);
+      dunesFront.push(`<rect x="0" y="${(horizonY - 6).toFixed(1)}" width="${W}" height="${(H - horizonY + 6).toFixed(1)}" fill="url(#${horizonHazeId})"/>`);
+
+      return `<svg width="100%" height="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    ${defs.join('\n    ')}
+  </defs>
+  <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${skyGradId})"/>
+  ${stars.join('\n  ')}
+  ${alignment.join('\n  ')}
+  ${farPlanets.join('\n  ')}
+  ${gasGiant.join('\n  ')}
+  ${ringPlanet.join('\n  ')}
+  ${skyFx.join('\n  ')}
+  ${dunesBack.join('\n  ')}
+  ${horizonPlanets.join('\n  ')}
+  ${dunesFront.join('\n  ')}
+</svg>`;
+    }
+
+    function generateAuroraSvg(genre, imagePrompt) {
+      const themeKey = (GENRE_CFG[genre] || {}).key || 'space';
+      const seed = _seedStr(`aurora:${imagePrompt || genre || 'aurora'}`);
+      const baseColor = new Col(AURORA_BASE_COLORS[themeKey] || '#2f5d92');
+      const rng = _mkRng(seed);
+
+      const W = 600, H = 300;
+      const sid = seed.toString(36);
+      const skyGradId = `auSky${sid}`;
+      const sunriseGradId = `auSunrise${sid}`;
+      const eclipseCoronaId = `auEclipseCorona${sid}`;
+      const hazeGradId = `auHaze${sid}`;
+      const cloudBlurId = `auCloudBlur${sid}`;
+      const auroraBlurId = `auRibbonBlur${sid}`;
+      const glowId = `auGlow${sid}`;
+
+      const rand = (a = 0, b = 1) => a + rng() * (b - a);
+      const chance = (p) => rng() < p;
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+      const lerp = (a, b, t) => a + (b - a) * t;
+
+      function hashInt(n) {
+        let x = Math.imul((n | 0) ^ seed, 2246822519);
+        x ^= x >>> 13;
+        x = Math.imul(x, 3266489917);
+        x ^= x >>> 16;
+        return (x >>> 0) / 4294967295;
+      }
+      function noise1D(x) {
+        const i = Math.floor(x);
+        const f = x - i;
+        const u = f * f * (3 - 2 * f);
+        return hashInt(i) * (1 - u) + hashInt(i + 1) * u;
+      }
+      function fbm(x, octaves = 4) {
+        let sum = 0;
+        let amp = 0.56;
+        let freq = 1;
+        let norm = 0;
+        for (let o = 0; o < octaves; o++) {
+          sum += noise1D(x * freq) * amp;
+          norm += amp;
+          amp *= 0.5;
+          freq *= 2.05;
+        }
+        return norm > 0 ? sum / norm : 0;
+      }
+
+      const horizonY = rand(176, 210);
+      const sunriseX = rand(W * 0.2, W * 0.8);
+      const sunriseY = horizonY + rand(-12, 18);
+      const sunriseR = rand(92, 172);
+      const eclipseX = clamp(sunriseX + rand(-180, 180), 72, W - 72);
+      const eclipseY = rand(42, 118);
+      const eclipseR = rand(20, 42);
+      const ringR = eclipseR * rand(1.16, 1.34);
+      const ribbonCount = 3 + Math.floor(rand(0, 4));
+      const cloudCount = 8 + Math.floor(rand(0, 10));
+      const atmosphericDots = 45 + Math.floor(rand(0, 55));
+
+      const defs = [];
+      const atmosphere = [];
+      const ribbons = [];
+      const clouds = [];
+      const eclipse = [];
+      const rainbow = [];
+      const skyParticles = [];
+
+      const skyTop = baseColor.rotate(218).desaturate(0.12).darken(0.7).string();
+      const skyMid = baseColor.rotate(182).desaturate(0.08).darken(0.48).string();
+      const skyLow = baseColor.rotate(24).saturate(0.2).lighten(0.65).string();
+      const sunriseInner = baseColor.rotate(40).saturate(0.62).lighten(1.22).string();
+      const sunriseOuter = baseColor.rotate(10).saturate(0.42).lighten(0.58).string();
+      const hazeColor = baseColor.rotate(34).desaturate(0.08).lighten(0.94).string();
+      const cloudColor = baseColor.rotate(180).desaturate(0.22).lighten(0.95).string();
+      const eclipseCore = baseColor.rotate(232).desaturate(0.15).darken(0.78).string();
+
+      defs.push(`<linearGradient id="${skyGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${skyTop}"/>
+      <stop offset="62%" stop-color="${skyMid}"/>
+      <stop offset="100%" stop-color="${skyLow}"/>
+    </linearGradient>`);
+      defs.push(`<radialGradient id="${sunriseGradId}" cx="50%" cy="50%" r="62%">
+      <stop offset="0%" stop-color="${sunriseInner}" stop-opacity="0.98"/>
+      <stop offset="100%" stop-color="${sunriseOuter}" stop-opacity="0"/>
+    </radialGradient>`);
+      defs.push(`<radialGradient id="${eclipseCoronaId}" cx="50%" cy="50%" r="66%">
+      <stop offset="0%" stop-color="${baseColor.rotate(52).saturate(0.2).lighten(1.3).string()}" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(52).saturate(0.2).lighten(1.0).string()}" stop-opacity="0"/>
+    </radialGradient>`);
+      defs.push(`<linearGradient id="${hazeGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${hazeColor}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${hazeColor}" stop-opacity="0.48"/>
+    </linearGradient>`);
+      defs.push(`<filter id="${cloudBlurId}" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="${rand(1.6, 2.8).toFixed(2)}"/>
+    </filter>`);
+      defs.push(`<filter id="${auroraBlurId}" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="${rand(3.8, 6.4).toFixed(2)}"/>
+    </filter>`);
+      defs.push(`<filter id="${glowId}" x="-50%" y="-50%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="1.3" result="soft"/>
+      <feMerge>
+        <feMergeNode in="soft"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>`);
+
+      atmosphere.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="url(#${skyGradId})"/>`);
+      atmosphere.push(`<circle cx="${sunriseX.toFixed(1)}" cy="${sunriseY.toFixed(1)}" r="${sunriseR.toFixed(1)}" fill="url(#${sunriseGradId})"/>`);
+
+      for (let i = 0; i < atmosphericDots; i++) {
+        const x = rand(0, W);
+        const y = rand(0, H * 0.9);
+        const r = chance(0.8) ? rand(0.3, 1.2) : rand(1.0, 2.2);
+        const op = rand(0.08, 0.38);
+        skyParticles.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${baseColor.rotate(160).desaturate(0.35).lighten(1.5).string()}" fill-opacity="${op.toFixed(2)}" filter="url(#${glowId})"/>`);
+      }
+
+      for (let i = 0; i < ribbonCount; i++) {
+        const rid = `auRibbon${sid}${i}`;
+        const startY = rand(24, horizonY - 36);
+        const amp = rand(10, 32);
+        const freq = rand(0.005, 0.014);
+        const phase = rand(0, 900);
+        const noiseScale = rand(0.005, 0.015);
+        const thick = rand(14, 34);
+        defs.push(`<linearGradient id="${rid}" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${baseColor.rotate(102 + rand(-25, 20)).saturate(0.45).lighten(0.92).string()}" stop-opacity="0"/>
+      <stop offset="20%" stop-color="${baseColor.rotate(88 + rand(-20, 18)).saturate(0.42).lighten(1.05).string()}" stop-opacity="${rand(0.5, 0.84).toFixed(2)}"/>
+      <stop offset="55%" stop-color="${baseColor.rotate(150 + rand(-22, 24)).saturate(0.38).lighten(1.0).string()}" stop-opacity="${rand(0.56, 0.9).toFixed(2)}"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(186 + rand(-24, 18)).saturate(0.35).lighten(0.88).string()}" stop-opacity="0"/>
+    </linearGradient>`);
+        let d = `M -20 ${startY.toFixed(1)} `;
+        for (let x = -20; x <= W + 20; x += 16) {
+          const y = startY
+            + Math.sin((x + phase) * freq) * amp
+            + Math.sin((x + phase) * freq * 0.5) * amp * 0.48
+            + (fbm((x + i * 67) * noiseScale, 4) - 0.5) * amp * 1.7;
+          d += `L ${x} ${y.toFixed(1)} `;
+        }
+        ribbons.push(`<path d="${d}" fill="none" stroke="url(#${rid})" stroke-width="${thick.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${rand(0.4, 0.8).toFixed(2)}" filter="url(#${auroraBlurId})"/>`);
+        ribbons.push(`<path d="${d}" fill="none" stroke="url(#${rid})" stroke-width="${(thick * 0.38).toFixed(2)}" stroke-linecap="round" stroke-opacity="${rand(0.56, 0.95).toFixed(2)}"/>`);
+      }
+
+      for (let i = 0; i < cloudCount; i++) {
+        const cx = rand(-60, W + 60);
+        const cy = rand(horizonY * 0.34, horizonY + 8);
+        const pieces = 2 + Math.floor(rand(0, 5));
+        for (let p = 0; p < pieces; p++) {
+          const ox = rand(-36, 36);
+          const oy = rand(-8, 8);
+          const rx = rand(22, 84);
+          const ry = rand(8, 26);
+          clouds.push(`<ellipse cx="${(cx + ox).toFixed(1)}" cy="${(cy + oy).toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${cloudColor}" fill-opacity="${rand(0.12, 0.28).toFixed(2)}" filter="url(#${cloudBlurId})"/>`);
+        }
+      }
+
+      eclipse.push(`<circle cx="${eclipseX.toFixed(1)}" cy="${eclipseY.toFixed(1)}" r="${ringR.toFixed(1)}" fill="url(#${eclipseCoronaId})"/>`);
+      eclipse.push(`<circle cx="${eclipseX.toFixed(1)}" cy="${eclipseY.toFixed(1)}" r="${eclipseR.toFixed(1)}" fill="${eclipseCore}"/>`);
+      eclipse.push(`<circle cx="${(eclipseX + rand(-1.2, 1.2)).toFixed(1)}" cy="${(eclipseY + rand(-1.2, 1.2)).toFixed(1)}" r="${(eclipseR * 0.86).toFixed(1)}" fill="${baseColor.rotate(225).desaturate(0.1).darken(0.82).string()}"/>`);
+      eclipse.push(`<circle cx="${eclipseX.toFixed(1)}" cy="${eclipseY.toFixed(1)}" r="${(eclipseR * 1.02).toFixed(1)}" fill="none" stroke="${baseColor.rotate(48).saturate(0.2).lighten(1.2).string()}" stroke-opacity="0.35" stroke-width="1"/>`);
+
+      const rainbowBands = [
+        '#ff5e72',
+        '#ff9d3f',
+        '#ffd64a',
+        '#6de67f',
+        '#57d9e8',
+        '#4f8eff',
+        '#a86aff',
+      ];
+      const rCx = W * 0.5 + rand(-46, 46);
+      const rCy = horizonY + rand(20, 58);
+      const rRx = rand(170, 264);
+      const rRy = rand(62, 116);
+      const bandW = rand(3, 5.2);
+      for (let i = 0; i < rainbowBands.length; i++) {
+        const rx = rRx - i * bandW * 1.3;
+        const ry = rRy - i * bandW * 0.9;
+        const sx = rCx - rx;
+        const ex = rCx + rx;
+        const y = rCy;
+        rainbow.push(`<path d="M ${sx.toFixed(1)} ${y.toFixed(1)} A ${rx.toFixed(1)} ${ry.toFixed(1)} 0 0 1 ${ex.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${rainbowBands[i]}" stroke-width="${bandW.toFixed(2)}" stroke-linecap="round" stroke-opacity="${(0.18 + (rainbowBands.length - i) * 0.03).toFixed(2)}" filter="url(#${cloudBlurId})"/>`);
+      }
+
+      atmosphere.push(`<rect x="0" y="${(horizonY - 8).toFixed(1)}" width="${W}" height="${(H - horizonY + 8).toFixed(1)}" fill="url(#${hazeGradId})"/>`);
+      if (chance(0.7)) {
+        for (let i = 0; i < 4 + Math.floor(rand(0, 5)); i++) {
+          const x = rand(-40, W - 20);
+          const w = rand(120, 230);
+          const h = rand(70, 130);
+          atmosphere.push(`<ellipse cx="${(x + w * 0.5).toFixed(1)}" cy="${(horizonY + rand(4, 28)).toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(h * 0.35).toFixed(1)}" fill="${hazeColor}" fill-opacity="${rand(0.05, 0.14).toFixed(2)}" filter="url(#${cloudBlurId})"/>`);
+        }
+      }
+
+      return `<svg width="100%" height="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    ${defs.join('\n    ')}
+  </defs>
+  ${atmosphere.join('\n  ')}
+  ${skyParticles.join('\n  ')}
+  ${rainbow.join('\n  ')}
+  ${ribbons.join('\n  ')}
+  ${clouds.join('\n  ')}
+  ${eclipse.join('\n  ')}
+</svg>`;
+    }
+
+    function generateOrganicSvg(genre, imagePrompt) {
+      const themeKey = (GENRE_CFG[genre] || {}).key || 'cyberpunk';
+      const seed = _seedStr(`organic:${imagePrompt || genre || 'organic'}`);
+      const baseColor = new Col(ORGANIC_BASE_COLORS[themeKey] || '#3f7489');
+      const rng = _mkRng(seed);
+
+      const W = 600, H = 300;
+      const sid = seed.toString(36);
+      const bgGradId = `ogBg${sid}`;
+      const glowId = `ogGlow${sid}`;
+      const inkBlurId = `ogInkBlur${sid}`;
+
+      const rand = (a = 0, b = 1) => a + rng() * (b - a);
+      const chance = (p) => rng() < p;
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+      function hashInt(n) {
+        let x = Math.imul((n | 0) ^ seed, 2246822519);
+        x ^= x >>> 13;
+        x = Math.imul(x, 3266489917);
+        x ^= x >>> 16;
+        return (x >>> 0) / 4294967295;
+      }
+      function noise1D(x) {
+        const i = Math.floor(x);
+        const f = x - i;
+        const u = f * f * (3 - 2 * f);
+        return hashInt(i) * (1 - u) + hashInt(i + 1) * u;
+      }
+      function fbm(x, octaves = 4) {
+        let sum = 0;
+        let amp = 0.56;
+        let freq = 1;
+        let norm = 0;
+        for (let o = 0; o < octaves; o++) {
+          sum += noise1D(x * freq) * amp;
+          norm += amp;
+          amp *= 0.5;
+          freq *= 2.03;
+        }
+        return norm > 0 ? sum / norm : 0;
+      }
+
+      function makeBlobPath(cx, cy, radius, points, roughness = 0.42, squish = 1) {
+        const pts = [];
+        for (let i = 0; i < points; i++) {
+          const t = i / points;
+          const a = t * Math.PI * 2;
+          const n = fbm(i * 0.71 + cx * 0.011 + cy * 0.013, 4);
+          const rr = radius * (0.72 + n * roughness);
+          const rx = rr * (0.76 + fbm(i * 0.41 + seed * 0.0001, 3) * 0.38);
+          const ry = rr * squish * (0.76 + fbm(i * 0.37 + seed * 0.0002, 3) * 0.4);
+          const x = cx + Math.cos(a) * rx;
+          const y = cy + Math.sin(a) * ry;
+          pts.push([x, y]);
+        }
+        if (!pts.length) return '';
+        let d = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)} `;
+        for (let i = 1; i < pts.length; i++) d += `L ${pts[i][0].toFixed(1)} ${pts[i][1].toFixed(1)} `;
+        d += 'Z';
+        return d;
+      }
+
+      const defs = [];
+      const blobs = [];
+      const amoeba = [];
+      const ink = [];
+      const mist = [];
+
+      const bgTop = baseColor.rotate(205).desaturate(0.12).darken(0.64).string();
+      const bgMid = baseColor.rotate(165).desaturate(0.08).darken(0.38).string();
+      const bgLow = baseColor.rotate(88).saturate(0.12).lighten(0.12).string();
+      const glowColor = baseColor.rotate(155).desaturate(0.2).lighten(1.02).string();
+
+      defs.push(`<linearGradient id="${bgGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${bgTop}"/>
+      <stop offset="58%" stop-color="${bgMid}"/>
+      <stop offset="100%" stop-color="${bgLow}"/>
+    </linearGradient>`);
+      defs.push(`<filter id="${glowId}" x="-50%" y="-50%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="${rand(1.4, 2.4).toFixed(2)}" result="soft"/>
+      <feMerge>
+        <feMergeNode in="soft"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>`);
+      defs.push(`<filter id="${inkBlurId}" x="-50%" y="-50%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="${rand(3.8, 6.8).toFixed(2)}"/>
+    </filter>`);
+
+      const blobCount = 8 + Math.floor(rand(0, 9));
+      for (let i = 0; i < blobCount; i++) {
+        const cx = rand(-28, W + 28);
+        const cy = rand(-18, H + 18);
+        const r = rand(20, 74);
+        const pts = 14 + Math.floor(rand(0, 10));
+        const squish = rand(0.65, 1.3);
+        const d = makeBlobPath(cx, cy, r, pts, rand(0.28, 0.52), squish);
+        const fill = baseColor.rotate(rand(42, 180)).saturate(rand(0.08, 0.35)).lighten(rand(0.1, 0.68)).string();
+        const op = rand(0.14, 0.5);
+        blobs.push(`<path d="${d}" fill="${fill}" fill-opacity="${op.toFixed(2)}" filter="url(#${chance(0.55) ? glowId : inkBlurId})"/>`);
+        if (chance(0.32)) {
+          blobs.push(`<path d="${d}" fill="none" stroke="${glowColor}" stroke-opacity="${rand(0.08, 0.24).toFixed(2)}" stroke-width="${rand(0.8, 1.8).toFixed(2)}"/>`);
+        }
+      }
+
+      const clusterCount = 3 + Math.floor(rand(0, 4));
+      for (let c = 0; c < clusterCount; c++) {
+        const ccx = rand(70, W - 70);
+        const ccy = rand(50, H - 40);
+        const cells = 8 + Math.floor(rand(0, 15));
+        const spread = rand(22, 74);
+        const core = baseColor.rotate(rand(70, 190)).saturate(rand(0.2, 0.48)).lighten(rand(0.35, 0.9)).string();
+        for (let i = 0; i < cells; i++) {
+          const ang = rand(0, Math.PI * 2);
+          const dist = Math.pow(rand(), 0.68) * spread;
+          const x = clamp(ccx + Math.cos(ang) * dist, 8, W - 8);
+          const y = clamp(ccy + Math.sin(ang) * dist, 8, H - 8);
+          const rx = rand(4, 16);
+          const ry = rx * rand(0.56, 1.3);
+          const rot = rand(-80, 80);
+          const cellColor = baseColor.rotate(rand(52, 200)).saturate(rand(0.1, 0.45)).lighten(rand(0.2, 0.8)).string();
+          amoeba.push(`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" transform="rotate(${rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" fill="${cellColor}" fill-opacity="${rand(0.2, 0.65).toFixed(2)}"/>`);
+          if (chance(0.48)) {
+            amoeba.push(`<circle cx="${(x + rand(-rx * 0.35, rx * 0.35)).toFixed(1)}" cy="${(y + rand(-ry * 0.35, ry * 0.35)).toFixed(1)}" r="${(rand(0.7, rx * 0.45)).toFixed(2)}" fill="${core}" fill-opacity="${rand(0.2, 0.55).toFixed(2)}" filter="url(#${glowId})"/>`);
+          }
+        }
+        if (chance(0.74)) {
+          amoeba.push(`<ellipse cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" rx="${(spread * rand(0.6, 1.05)).toFixed(1)}" ry="${(spread * rand(0.34, 0.62)).toFixed(1)}" fill="${core}" fill-opacity="${rand(0.05, 0.16).toFixed(2)}" filter="url(#${inkBlurId})"/>`);
+        }
+      }
+
+      const dropCount = 3 + Math.floor(rand(0, 4));
+      for (let d = 0; d < dropCount; d++) {
+        const dx = rand(56, W - 56);
+        const dy = rand(40, H - 36);
+        const dr = rand(14, 32);
+        const inkCore = baseColor.rotate(rand(20, 110)).saturate(rand(0.26, 0.58)).darken(rand(0.06, 0.26)).string();
+        ink.push(`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${dr.toFixed(1)}" fill="${inkCore}" fill-opacity="${rand(0.3, 0.62).toFixed(2)}"/>`);
+        const ringCount = 2 + Math.floor(rand(0, 3));
+        for (let r = 0; r < ringCount; r++) {
+          const rr = dr * (1.25 + r * rand(0.26, 0.58));
+          ink.push(`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" stroke="${inkCore}" stroke-opacity="${rand(0.08, 0.28).toFixed(2)}" stroke-width="${rand(1.0, 2.8).toFixed(2)}" filter="url(#${inkBlurId})"/>`);
+        }
+        const splat = 12 + Math.floor(rand(0, 16));
+        for (let s = 0; s < splat; s++) {
+          const a = rand(0, Math.PI * 2);
+          const dist = dr * rand(1.2, 4.1);
+          const x = clamp(dx + Math.cos(a) * dist, 4, W - 4);
+          const y = clamp(dy + Math.sin(a) * dist, 4, H - 4);
+          const sr = rand(0.7, 5.2);
+          ink.push(`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${sr.toFixed(2)}" ry="${(sr * rand(0.56, 1.45)).toFixed(2)}" transform="rotate(${rand(-90, 90).toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" fill="${inkCore}" fill-opacity="${rand(0.1, 0.5).toFixed(2)}" filter="url(#${chance(0.55) ? inkBlurId : glowId})"/>`);
+        }
+        if (chance(0.6)) {
+          let tendril = `M ${dx.toFixed(1)} ${dy.toFixed(1)} `;
+          const steps = 4 + Math.floor(rand(0, 5));
+          let tx = dx;
+          let ty = dy;
+          for (let t = 0; t < steps; t++) {
+            tx = clamp(tx + rand(-26, 26), 0, W);
+            ty = clamp(ty + rand(-18, 18), 0, H);
+            tendril += `L ${tx.toFixed(1)} ${ty.toFixed(1)} `;
+          }
+          ink.push(`<path d="${tendril}" fill="none" stroke="${inkCore}" stroke-opacity="${rand(0.08, 0.24).toFixed(2)}" stroke-width="${rand(1.1, 3.4).toFixed(2)}" stroke-linecap="round" filter="url(#${inkBlurId})"/>`);
+        }
+      }
+
+      const mistCount = 5 + Math.floor(rand(0, 7));
+      for (let i = 0; i < mistCount; i++) {
+        const x = rand(-20, W + 20);
+        const y = rand(0, H);
+        const rx = rand(70, 180);
+        const ry = rand(16, 52);
+        mist.push(`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${baseColor.rotate(180).desaturate(0.2).lighten(0.92).string()}" fill-opacity="${rand(0.04, 0.14).toFixed(2)}" filter="url(#${inkBlurId})"/>`);
+      }
+
+      return `<svg width="100%" height="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    ${defs.join('\n    ')}
+  </defs>
+  <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${bgGradId})"/>
+  ${mist.join('\n  ')}
+  ${blobs.join('\n  ')}
+  ${amoeba.join('\n  ')}
+  ${ink.join('\n  ')}
+</svg>`;
+    }
+
+    function generateTemplesSvg(genre, imagePrompt) {
+      const themeKey = (GENRE_CFG[genre] || {}).key || 'gothic';
+      const seed = _seedStr(`temples:${imagePrompt || genre || 'temples'}`);
+      const baseColor = new Col(TEMPLES_BASE_COLORS[themeKey] || '#6f6d86');
+      const rng = _mkRng(seed);
+
+      const W = 600, H = 300;
+      const sid = seed.toString(36);
+      const skyGradId = `tpSky${sid}`;
+      const stoneGradId = `tpStone${sid}`;
+      const hazeGradId = `tpHaze${sid}`;
+      const windowGradId = `tpWindow${sid}`;
+      const glowId = `tpGlow${sid}`;
+
+      const rand = (a = 0, b = 1) => a + rng() * (b - a);
+      const chance = (p) => rng() < p;
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+      const nightMode = chance(0.44);
+      const horizonY = rand(166, 202);
+      const groundY = horizonY + rand(20, 34);
+
+      const templeX = rand(32, 120);
+      const templeW = rand(220, 308);
+      const templeH = rand(84, 124);
+      const colCount = 6 + Math.floor(rand(0, 4));
+      const colGap = templeW / colCount;
+
+      const pagodaOnRight = chance(0.5);
+      const pagodaX = pagodaOnRight ? rand(W * 0.68, W * 0.88) : rand(W * 0.12, W * 0.34);
+      const pagodaBaseY = groundY + rand(2, 12);
+      const pagodaTiers = 3 + Math.floor(rand(0, 4));
+
+      const windowX = pagodaOnRight ? rand(58, 170) : rand(W - 170, W - 58);
+      const windowY = rand(66, 124);
+      const windowW = rand(58, 90);
+      const windowH = rand(90, 132);
+
+      const defs = [];
+      const sky = [];
+      const hills = [];
+      const greek = [];
+      const pagoda = [];
+      const window = [];
+      const stars = [];
+
+      const skyTop = nightMode
+        ? baseColor.rotate(216).desaturate(0.1).darken(0.72).string()
+        : baseColor.rotate(195).desaturate(0.08).darken(0.44).string();
+      const skyMid = nightMode
+        ? baseColor.rotate(180).desaturate(0.08).darken(0.54).string()
+        : baseColor.rotate(152).saturate(0.07).darken(0.24).string();
+      const skyLow = nightMode
+        ? baseColor.rotate(130).desaturate(0.04).darken(0.35).string()
+        : baseColor.rotate(64).saturate(0.22).lighten(0.48).string();
+
+      const stoneLight = baseColor.rotate(28).desaturate(0.18).lighten(0.76).string();
+      const stoneDark = baseColor.rotate(6).desaturate(0.06).darken(0.28).string();
+      const silhouette = baseColor.rotate(14).desaturate(0.18).darken(nightMode ? 0.66 : 0.54).string();
+      const windowGlow = baseColor.rotate(44).saturate(0.58).lighten(1.15).string();
+
+      defs.push(`<linearGradient id="${skyGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${skyTop}"/>
+      <stop offset="58%" stop-color="${skyMid}"/>
+      <stop offset="100%" stop-color="${skyLow}"/>
+    </linearGradient>`);
+      defs.push(`<linearGradient id="${stoneGradId}" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${stoneLight}"/>
+      <stop offset="100%" stop-color="${stoneDark}"/>
+    </linearGradient>`);
+      defs.push(`<linearGradient id="${hazeGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${baseColor.rotate(40).desaturate(0.15).lighten(1.0).string()}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(40).desaturate(0.15).lighten(1.0).string()}" stop-opacity="${nightMode ? '0.14' : '0.34'}"/>
+    </linearGradient>`);
+      defs.push(`<radialGradient id="${windowGradId}" cx="50%" cy="42%" r="64%">
+      <stop offset="0%" stop-color="${windowGlow}" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="${windowGlow}" stop-opacity="0.05"/>
+    </radialGradient>`);
+      defs.push(`<filter id="${glowId}" x="-50%" y="-50%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="${nightMode ? '1.8' : '1.2'}" result="soft"/>
+      <feMerge>
+        <feMergeNode in="soft"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>`);
+
+      sky.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="url(#${skyGradId})"/>`);
+      if (nightMode || chance(0.6)) {
+        const starCount = (nightMode ? 70 : 36) + Math.floor(rand(0, nightMode ? 50 : 34));
+        const starColor = baseColor.rotate(168).desaturate(0.38).lighten(1.66).string();
+        for (let i = 0; i < starCount; i++) {
+          const x = rand(0, W);
+          const y = rand(0, H * 0.72);
+          const r = chance(0.86) ? rand(0.28, 1.1) : rand(0.9, 1.8);
+          stars.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${starColor}" fill-opacity="${rand(0.2, 0.9).toFixed(2)}" filter="url(#${glowId})"/>`);
+        }
+      }
+      const orbX = rand(W * 0.22, W * 0.78);
+      const orbY = rand(34, 86);
+      const orbR = rand(14, 30);
+      const orbColor = nightMode
+        ? baseColor.rotate(172).desaturate(0.6).lighten(1.34).string()
+        : baseColor.rotate(38).saturate(0.54).lighten(1.02).string();
+      sky.push(`<circle cx="${orbX.toFixed(1)}" cy="${orbY.toFixed(1)}" r="${orbR.toFixed(1)}" fill="${orbColor}" fill-opacity="${nightMode ? '0.72' : '0.88'}"/>`);
+
+      const h1Base = horizonY + rand(-8, 12);
+      const h1Amp = rand(10, 20);
+      const h1Freq = rand(0.009, 0.016);
+      const h1Phase = rand(0, 700);
+      const h2Base = groundY + rand(8, 18);
+      const h2Amp = rand(14, 24);
+      const h2Freq = rand(0.008, 0.014);
+      const h2Phase = rand(0, 700);
+      let h1 = `M 0 ${(h1Base + h1Amp).toFixed(1)} `;
+      let h2 = `M 0 ${(h2Base + h2Amp).toFixed(1)} `;
+      for (let x = 0; x <= W; x += 14) {
+        const y1 = h1Base + Math.sin((x + h1Phase) * h1Freq) * h1Amp + Math.sin((x + h1Phase) * h1Freq * 0.5) * h1Amp * 0.42;
+        const y2 = h2Base + Math.sin((x + h2Phase) * h2Freq) * h2Amp + Math.sin((x + h2Phase) * h2Freq * 0.6) * h2Amp * 0.48;
+        h1 += `L ${x} ${y1.toFixed(1)} `;
+        h2 += `L ${x} ${y2.toFixed(1)} `;
+      }
+      h1 += `L ${W} ${H} L 0 ${H} Z`;
+      h2 += `L ${W} ${H} L 0 ${H} Z`;
+      hills.push(`<path d="${h1}" fill="${baseColor.rotate(72).desaturate(0.1).darken(nightMode ? 0.48 : 0.36).string()}" fill-opacity="${nightMode ? '0.62' : '0.72'}"/>`);
+      hills.push(`<path d="${h2}" fill="${baseColor.rotate(60).desaturate(0.08).darken(nightMode ? 0.62 : 0.5).string()}" fill-opacity="${nightMode ? '0.82' : '0.9'}"/>`);
+      hills.push(`<rect x="0" y="${(horizonY - 4).toFixed(1)}" width="${W}" height="${(H - horizonY + 4).toFixed(1)}" fill="url(#${hazeGradId})"/>`);
+
+      const templeBaseY = groundY + rand(-6, 8);
+      const stylobateH = rand(12, 20);
+      const entablatureH = rand(12, 18);
+      const pedimentPeak = templeBaseY - templeH - rand(20, 34);
+      greek.push(`<rect x="${templeX.toFixed(1)}" y="${(templeBaseY - stylobateH).toFixed(1)}" width="${templeW.toFixed(1)}" height="${stylobateH.toFixed(1)}" fill="url(#${stoneGradId})"/>`);
+      greek.push(`<rect x="${(templeX + 8).toFixed(1)}" y="${(templeBaseY - templeH).toFixed(1)}" width="${(templeW - 16).toFixed(1)}" height="${entablatureH.toFixed(1)}" fill="url(#${stoneGradId})"/>`);
+      greek.push(`<path d="M ${(templeX + 4).toFixed(1)} ${(templeBaseY - templeH).toFixed(1)} L ${(templeX + templeW - 4).toFixed(1)} ${(templeBaseY - templeH).toFixed(1)} L ${(templeX + templeW * 0.5).toFixed(1)} ${pedimentPeak.toFixed(1)} Z" fill="url(#${stoneGradId})"/>`);
+      for (let i = 0; i < colCount; i++) {
+        const cx = templeX + colGap * (i + 0.5) + rand(-2.4, 2.4);
+        const cw = colGap * rand(0.42, 0.56);
+        let ch = templeH - entablatureH - rand(10, 20);
+        const broken = chance(0.14);
+        if (broken) ch *= rand(0.38, 0.66);
+        const topY = templeBaseY - stylobateH - ch;
+        greek.push(`<rect x="${(cx - cw / 2).toFixed(1)}" y="${topY.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}" rx="${(cw * 0.12).toFixed(1)}" fill="url(#${stoneGradId})"/>`);
+        greek.push(`<rect x="${(cx - cw * 0.64).toFixed(1)}" y="${(topY - cw * 0.16).toFixed(1)}" width="${(cw * 1.28).toFixed(1)}" height="${(cw * 0.2).toFixed(1)}" fill="url(#${stoneGradId})"/>`);
+        greek.push(`<rect x="${(cx - cw * 0.62).toFixed(1)}" y="${(templeBaseY - stylobateH).toFixed(1)}" width="${(cw * 1.24).toFixed(1)}" height="${(cw * 0.2).toFixed(1)}" fill="url(#${stoneGradId})"/>`);
+        for (let f = 0; f < 3; f++) {
+          const fx = cx - cw * 0.26 + f * cw * 0.26;
+          greek.push(`<line x1="${fx.toFixed(1)}" y1="${(topY + 2).toFixed(1)}" x2="${fx.toFixed(1)}" y2="${(templeBaseY - stylobateH - 2).toFixed(1)}" stroke="${stoneDark}" stroke-opacity="0.2" stroke-width="0.8"/>`);
+        }
+        if (broken) {
+          const bx1 = cx - cw * 0.46;
+          const bx2 = cx + cw * 0.42;
+          const by = topY + rand(0.6, 2.2);
+          greek.push(`<path d="M ${bx1.toFixed(1)} ${by.toFixed(1)} L ${(bx1 + cw * 0.28).toFixed(1)} ${(by - rand(2, 5)).toFixed(1)} L ${(bx1 + cw * 0.52).toFixed(1)} ${(by - rand(0.6, 3)).toFixed(1)} L ${bx2.toFixed(1)} ${by.toFixed(1)}" fill="none" stroke="${stoneDark}" stroke-opacity="0.35" stroke-width="1"/>`);
+        }
+      }
+
+      const pagodaColor = silhouette;
+      const tierBaseW = rand(80, 134);
+      const tierH = rand(16, 24);
+      for (let t = 0; t < pagodaTiers; t++) {
+        const k = t / pagodaTiers;
+        const bodyW = tierBaseW * (1 - k * rand(0.16, 0.24));
+        const roofW = bodyW * rand(1.2, 1.45);
+        const bodyH = tierH * rand(0.44, 0.66);
+        const y = pagodaBaseY - (t + 1) * tierH - t * rand(3, 6);
+        pagoda.push(`<rect x="${(pagodaX - bodyW / 2).toFixed(1)}" y="${(y + tierH * 0.28).toFixed(1)}" width="${bodyW.toFixed(1)}" height="${bodyH.toFixed(1)}" fill="${pagodaColor}" fill-opacity="${(0.66 + k * 0.2).toFixed(2)}"/>`);
+        pagoda.push(`<path d="M ${(pagodaX - roofW / 2).toFixed(1)} ${(y + tierH * 0.28).toFixed(1)} Q ${pagodaX.toFixed(1)} ${(y - tierH * 0.2).toFixed(1)} ${(pagodaX + roofW / 2).toFixed(1)} ${(y + tierH * 0.28).toFixed(1)} L ${(pagodaX + roofW * 0.42).toFixed(1)} ${(y + tierH * 0.42).toFixed(1)} L ${(pagodaX - roofW * 0.42).toFixed(1)} ${(y + tierH * 0.42).toFixed(1)} Z" fill="${pagodaColor}" fill-opacity="${(0.78 + k * 0.1).toFixed(2)}"/>`);
+      }
+      pagoda.push(`<rect x="${(pagodaX - 5).toFixed(1)}" y="${(pagodaBaseY - pagodaTiers * tierH - rand(10, 22)).toFixed(1)}" width="10" height="${(pagodaTiers * tierH + rand(10, 22)).toFixed(1)}" fill="${pagodaColor}" fill-opacity="0.85"/>`);
+      pagoda.push(`<circle cx="${pagodaX.toFixed(1)}" cy="${(pagodaBaseY - pagodaTiers * tierH - rand(10, 20)).toFixed(1)}" r="${rand(3, 5).toFixed(1)}" fill="${pagodaColor}" fill-opacity="0.9"/>`);
+
+      const wx = windowX;
+      const wy = windowY;
+      const ww = windowW;
+      const wh = windowH;
+      const archTopY = wy - wh * 0.34;
+      const left = wx - ww / 2;
+      const right = wx + ww / 2;
+      const bottom = wy + wh / 2;
+      const shoulderY = wy - wh * 0.04;
+      const rosetteR = ww * rand(0.16, 0.24);
+      window.push(`<path d="M ${left.toFixed(1)} ${bottom.toFixed(1)} L ${left.toFixed(1)} ${shoulderY.toFixed(1)} Q ${wx.toFixed(1)} ${archTopY.toFixed(1)} ${right.toFixed(1)} ${shoulderY.toFixed(1)} L ${right.toFixed(1)} ${bottom.toFixed(1)} Z" fill="${silhouette}" fill-opacity="0.95"/>`);
+      window.push(`<path d="M ${(left + ww * 0.1).toFixed(1)} ${(bottom - wh * 0.08).toFixed(1)} L ${(left + ww * 0.1).toFixed(1)} ${(shoulderY + wh * 0.06).toFixed(1)} Q ${wx.toFixed(1)} ${(archTopY + wh * 0.16).toFixed(1)} ${(right - ww * 0.1).toFixed(1)} ${(shoulderY + wh * 0.06).toFixed(1)} L ${(right - ww * 0.1).toFixed(1)} ${(bottom - wh * 0.08).toFixed(1)} Z" fill="url(#${windowGradId})" fill-opacity="${nightMode ? '0.85' : '0.75'}"/>`);
+      window.push(`<line x1="${wx.toFixed(1)}" y1="${(archTopY + wh * 0.18).toFixed(1)}" x2="${wx.toFixed(1)}" y2="${(bottom - wh * 0.08).toFixed(1)}" stroke="${windowGlow}" stroke-opacity="0.58" stroke-width="1.2"/>`);
+      window.push(`<line x1="${(left + ww * 0.1).toFixed(1)}" y1="${(wy + wh * 0.05).toFixed(1)}" x2="${(right - ww * 0.1).toFixed(1)}" y2="${(wy + wh * 0.05).toFixed(1)}" stroke="${windowGlow}" stroke-opacity="0.46" stroke-width="1"/>`);
+      window.push(`<circle cx="${wx.toFixed(1)}" cy="${(wy - wh * 0.08).toFixed(1)}" r="${rosetteR.toFixed(1)}" fill="none" stroke="${windowGlow}" stroke-opacity="0.56" stroke-width="1"/>`);
+      window.push(`<line x1="${(wx - rosetteR).toFixed(1)}" y1="${(wy - wh * 0.08).toFixed(1)}" x2="${(wx + rosetteR).toFixed(1)}" y2="${(wy - wh * 0.08).toFixed(1)}" stroke="${windowGlow}" stroke-opacity="0.38" stroke-width="0.9"/>`);
+      window.push(`<line x1="${wx.toFixed(1)}" y1="${(wy - wh * 0.08 - rosetteR).toFixed(1)}" x2="${wx.toFixed(1)}" y2="${(wy - wh * 0.08 + rosetteR).toFixed(1)}" stroke="${windowGlow}" stroke-opacity="0.38" stroke-width="0.9"/>`);
+      if (chance(0.7)) {
+        for (let i = 0; i < 3 + Math.floor(rand(0, 3)); i++) {
+          const by = bottom + rand(8, 24) + i * rand(6, 16);
+          const bw = ww * rand(0.6, 1.2);
+          window.push(`<path d="M ${(wx - 2).toFixed(1)} ${(bottom - 2).toFixed(1)} L ${(wx - bw * 0.5).toFixed(1)} ${by.toFixed(1)} L ${(wx + bw * 0.5).toFixed(1)} ${by.toFixed(1)} Z" fill="${windowGlow}" fill-opacity="${rand(0.04, 0.14).toFixed(2)}" filter="url(#${glowId})"/>`);
+        }
+      }
+
+      return `<svg width="100%" height="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    ${defs.join('\n    ')}
+  </defs>
+  ${sky.join('\n  ')}
+  ${stars.join('\n  ')}
+  ${hills.join('\n  ')}
+  ${greek.join('\n  ')}
+  ${pagoda.join('\n  ')}
+  ${window.join('\n  ')}
+</svg>`;
+    }
+
     function generateSvg(genre, imagePrompt) {
       const rng = _mkRng(_seedStr(`scene:${imagePrompt || genre || 'svg'}`));
       const pick = rng();
-      if (pick < 0.2) return generateStarrySkySvg(genre, imagePrompt);
-      if (pick < 0.4) return generateTerrainSvg(genre, imagePrompt);
-      if (pick < 0.6) return generateOceanSvg(genre, imagePrompt);
-      if (pick < 0.8) return generateForestSvg(genre, imagePrompt);
-      return generateDesertSvg(genre, imagePrompt);
+      if (pick < 0.11) return generateStarrySkySvg(genre, imagePrompt);
+      if (pick < 0.22) return generateTerrainSvg(genre, imagePrompt);
+      if (pick < 0.33) return generateOceanSvg(genre, imagePrompt);
+      if (pick < 0.44) return generateForestSvg(genre, imagePrompt);
+      if (pick < 0.55) return generateDesertSvg(genre, imagePrompt);
+      if (pick < 0.66) return generatePlanetSSvg(genre, imagePrompt);
+      if (pick < 0.77) return generateAuroraSvg(genre, imagePrompt);
+      if (pick < 0.88) return generateOrganicSvg(genre, imagePrompt);
+      return generateTemplesSvg(genre, imagePrompt);
     }
     let timerInterval = null;
     let verbInterval  = null;
