@@ -376,6 +376,8 @@
     };
     let resumeDecisionResolver = null;
     let resumeDecisionFocusEl = null;
+    let deleteStoriesDecisionResolver = null;
+    let deleteStoriesDecisionFocusEl = null;
 
     function gaSafe(value, maxLen = 120) {
       if (value === null || value === undefined) return '';
@@ -797,6 +799,90 @@
 
       stories.sort((a, b) => Math.max(b.completedAt, b.generatedAt) - Math.max(a.completedAt, a.generatedAt));
       return stories;
+    }
+
+    function savedStoryStorageKeys() {
+      const keys = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key) continue;
+          if (
+            key.startsWith(STORY_KEY_PREFIX) ||
+            key.startsWith(PROGRESS_KEY_PREFIX) ||
+            key.startsWith(COMPLETED_STORY_KEY_PREFIX)
+          ) {
+            keys.push(key);
+          }
+        }
+      } catch {
+        return [];
+      }
+      return keys;
+    }
+
+    function promptDeleteStoriesDecision(storyCount) {
+      const overlay = document.getElementById('delete-stories-overlay');
+      const copyEl = document.getElementById('delete-stories-copy');
+      const countEl = document.getElementById('delete-stories-count');
+      const confirmBtn = document.getElementById('delete-stories-confirm-btn');
+      if (!overlay || !copyEl || !countEl) {
+        const label = storyCount === 1 ? 'story' : 'stories';
+        return Promise.resolve(confirm(`Delete all ${storyCount} saved ${label}? This cannot be undone.`));
+      }
+
+      const label = storyCount === 1 ? 'story' : 'stories';
+      countEl.textContent = `${storyCount} ${label}`;
+      copyEl.textContent = `This action permanently removes ${storyCount} saved ${label} and all checkpoints.`;
+
+      if (deleteStoriesDecisionResolver) {
+        const resolvePrev = deleteStoriesDecisionResolver;
+        deleteStoriesDecisionResolver = null;
+        resolvePrev(false);
+      }
+
+      overlay.classList.remove('hidden');
+      deleteStoriesDecisionFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      requestAnimationFrame(() => confirmBtn?.focus());
+
+      return new Promise(resolve => {
+        deleteStoriesDecisionResolver = resolve;
+      });
+    }
+
+    function handleDeleteStoriesDecision(shouldDelete) {
+      const overlay = document.getElementById('delete-stories-overlay');
+      if (overlay) overlay.classList.add('hidden');
+
+      const resolve = deleteStoriesDecisionResolver;
+      deleteStoriesDecisionResolver = null;
+
+      if (deleteStoriesDecisionFocusEl && typeof deleteStoriesDecisionFocusEl.focus === 'function') {
+        deleteStoriesDecisionFocusEl.focus();
+      }
+      deleteStoriesDecisionFocusEl = null;
+
+      if (typeof resolve === 'function') resolve(Boolean(shouldDelete));
+    }
+
+    async function deleteAllSavedStories() {
+      const stories = savedStoriesFromStorage();
+      if (!stories.length) return;
+
+      const shouldDelete = await promptDeleteStoriesDecision(stories.length);
+      if (!shouldDelete) return;
+
+      const keys = savedStoryStorageKeys();
+      keys.forEach(key => {
+        try { localStorage.removeItem(key); } catch {}
+      });
+
+      renderSetupHistory();
+
+      trackEvent('saved_stories_deleted', gaStoryParams({
+        deleted_stories: stories.length,
+        deleted_keys: keys.length,
+      }));
     }
 
     async function replaySavedStory(entry) {
@@ -2490,6 +2576,12 @@
       });
       document.addEventListener('keydown', evt => {
         if (evt.key !== 'Escape') return;
+        const deleteStoriesOverlay = document.getElementById('delete-stories-overlay');
+        if (deleteStoriesOverlay && !deleteStoriesOverlay.classList.contains('hidden')) {
+          evt.preventDefault();
+          handleDeleteStoriesDecision(false);
+          return;
+        }
         const resumeOverlay = document.getElementById('resume-overlay');
         if (!resumeOverlay || resumeOverlay.classList.contains('hidden')) return;
         evt.preventDefault();

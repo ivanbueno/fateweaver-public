@@ -79,6 +79,29 @@
     </div>
   </div>
 
+  <!-- ─── DELETE STORIES DIALOG ─── -->
+  <div id="delete-stories-overlay" class="resume-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="delete-stories-title" aria-describedby="delete-stories-copy">
+    <div class="resume-card">
+      <p class="resume-kicker">Delete Saved Stories</p>
+      <h3 id="delete-stories-title">Delete all saved stories?</h3>
+      <p id="delete-stories-copy" class="resume-copy">This action permanently removes your local story history.</p>
+      <div class="resume-meta">
+        <div class="resume-meta-item">
+          <span class="resume-meta-label">Stories Found</span>
+          <span class="resume-meta-value" id="delete-stories-count">0 stories</span>
+        </div>
+        <div class="resume-meta-item">
+          <span class="resume-meta-label">Action</span>
+          <span class="resume-meta-value">Permanent delete</span>
+        </div>
+      </div>
+      <div class="settings-row resume-actions">
+        <button id="delete-stories-confirm-btn" class="btn-primary" onclick="handleDeleteStoriesDecision(true)">Delete stories</button>
+        <button id="delete-stories-cancel-btn" class="btn-secondary" onclick="handleDeleteStoriesDecision(false)">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── HOME BUTTON ─── -->
   <button id="btn-home" class="home-btn home-hidden" onclick="goHome()" title="Go to Home" aria-label="Go to home screen">
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -116,6 +139,16 @@
 
       <details id="setup-history" class="setup-history hidden">
         <summary id="setup-history-summary" class="setup-history-summary">Replay Previous Stories</summary>
+        <div class="setup-history-actions">
+          <button id="setup-history-clear-btn" class="setup-history-clear-btn" type="button" onclick="deleteAllSavedStories()">
+            <span class="setup-history-clear-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M3 6h18M9 6V4h6v2m-8 0l1 14h8l1-14M10 10v7m4-7v7" />
+              </svg>
+            </span>
+            <span>Delete stories</span>
+          </button>
+        </div>
         <div id="setup-history-list" class="setup-history-list"></div>
       </details>
 
