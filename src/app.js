@@ -1656,8 +1656,7 @@
     let endingShareResetTid = null;
     const STORY_KEY_PREFIX = 'visualnovel_story_';
     const PROGRESS_KEY_PREFIX = 'visualnovel_progress_';
-    const COMPLETED_STORY_KEY_PREFIX = 'visualnovel_completed_story_';
-    const COMPLETED_STORY_LIMIT = 24;
+    const LEGACY_STORY_ARCHIVE_PREFIX = 'visualnovel_completed_story_';
 
     /* ─── STORAGE HELPERS ──────────────────────────────────── */
     const slug = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -1687,40 +1686,30 @@
     }
     function loadStoredStory() { return lsGet(storyKey()); }
 
-    function trimCompletedStories() {
-      const archive = [];
+    function removeLegacyCompletedStoriesForSelection(genre, era, archetype) {
+      const target = `${slug(genre)}_${slug(era)}_${slug(archetype)}`;
       try {
-        for (let i = 0; i < localStorage.length; i++) {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
           const key = localStorage.key(i);
-          if (!key || !key.startsWith(COMPLETED_STORY_KEY_PREFIX)) continue;
+          if (!key || !key.startsWith(LEGACY_STORY_ARCHIVE_PREFIX)) continue;
           const stored = lsGet(key);
-          if (!stored?.pages) continue;
-          const meta = stored.meta || {};
-          archive.push({
-            key,
-            recency: Number(meta.completedAt) || Number(meta.generatedAt) || 0,
-          });
+          const meta = stored?.meta || {};
+          const candidate = `${slug(meta.genre)}_${slug(meta.era)}_${slug(meta.archetype)}`;
+          if (candidate !== target) continue;
+          localStorage.removeItem(key);
         }
-      } catch {
-        return;
-      }
-
-      archive
-        .sort((a, b) => b.recency - a.recency)
-        .slice(COMPLETED_STORY_LIMIT)
-        .forEach(entry => {
-          try { localStorage.removeItem(entry.key); } catch {}
-        });
+      } catch {}
     }
 
     function saveCompletedStory(endingType) {
       if (!S.story?.pages || !S.genre || !S.era || !S.archetype) return;
 
       const now = Date.now();
+      const key = storyKey();
       const active = loadStoredStory();
       const generatedAt = Number(active?.meta?.generatedAt) || now;
-      const suffix = Math.random().toString(36).slice(2, 8);
-      const key = `${COMPLETED_STORY_KEY_PREFIX}${now}_${suffix}`;
+      removeLegacyCompletedStoriesForSelection(S.genre, S.era, S.archetype);
+      try { localStorage.removeItem(key); } catch {}
 
       lsSet(key, {
         meta: {
@@ -1733,8 +1722,6 @@
         },
         pages: storyPagesForStorage(S.story),
       });
-
-      trimCompletedStories();
     }
 
     function saveProgress() {
@@ -1767,9 +1754,7 @@
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (!key) continue;
-          const isActive = key.startsWith(STORY_KEY_PREFIX);
-          const isCompleted = key.startsWith(COMPLETED_STORY_KEY_PREFIX);
-          if (!isActive && !isCompleted) continue;
+          if (!key.startsWith(STORY_KEY_PREFIX)) continue;
           const stored = lsGet(key);
           if (!stored?.pages) continue;
 
@@ -1777,9 +1762,10 @@
           const genre = String(meta.genre || 'Unknown Genre');
           const era = String(meta.era || 'Unknown Era');
           const archetype = String(meta.archetype || 'Unknown Archetype');
+          const isCompleted = Number(meta.completedAt) > 0;
           stories.push({
             key,
-            kind: isActive ? 'active' : 'completed',
+            kind: isCompleted ? 'completed' : 'active',
             progressKey: `${PROGRESS_KEY_PREFIX}${slug(genre)}_${slug(era)}_${slug(archetype)}`,
             story: stored,
             genre,
@@ -1806,7 +1792,7 @@
           if (
             key.startsWith(STORY_KEY_PREFIX) ||
             key.startsWith(PROGRESS_KEY_PREFIX) ||
-            key.startsWith(COMPLETED_STORY_KEY_PREFIX)
+            key.startsWith(LEGACY_STORY_ARCHIVE_PREFIX)
           ) {
             keys.push(key);
           }
@@ -1890,21 +1876,19 @@
       let targetStartedAt = Date.now();
       let clearProgress = true;
 
-      if (entry.kind === 'active') {
-        const prog = lsGet(entry.progressKey);
-        const hasChoices = Array.isArray(prog?.choicesMade) && prog.choicesMade.length > 0;
-        const hasCheckpoint = Boolean(prog?.currentPage && prog.currentPage !== 'page_1');
-        const canResume = hasChoices || hasCheckpoint;
+      const prog = lsGet(entry.progressKey);
+      const hasChoices = Array.isArray(prog?.choicesMade) && prog.choicesMade.length > 0;
+      const hasCheckpoint = Boolean(prog?.currentPage && prog.currentPage !== 'page_1');
+      const canResume = hasChoices || hasCheckpoint;
 
-        if (canResume) {
-          const shouldResume = await promptResumeDecision(entry.story, prog);
-          if (shouldResume) {
-            const candidatePage = typeof prog?.currentPage === 'string' ? prog.currentPage : 'page_1';
-            targetPage = Object.prototype.hasOwnProperty.call(pages, candidatePage) ? candidatePage : 'page_1';
-            targetChoices = Array.isArray(prog?.choicesMade) ? prog.choicesMade : [];
-            targetStartedAt = Number(prog?.startedAt) || Date.now();
-            clearProgress = false;
-          }
+      if (canResume) {
+        const shouldResume = await promptResumeDecision(entry.story, prog);
+        if (shouldResume) {
+          const candidatePage = typeof prog?.currentPage === 'string' ? prog.currentPage : 'page_1';
+          targetPage = Object.prototype.hasOwnProperty.call(pages, candidatePage) ? candidatePage : 'page_1';
+          targetChoices = Array.isArray(prog?.choicesMade) ? prog.choicesMade : [];
+          targetStartedAt = Number(prog?.startedAt) || Date.now();
+          clearProgress = false;
         }
       }
 
@@ -3429,7 +3413,6 @@
       }
 
       saveCompletedStory(type);
-      localStorage.removeItem(storyKey());
       localStorage.removeItem(progressKey());
       renderSetupHistory();
 
@@ -3516,7 +3499,12 @@
       setTimeout(() => {
         stopMusic();
         setMusicBtn('hidden');
-        localStorage.removeItem(storyKey());
+        const stored = loadStoredStory();
+        if (Number(stored?.meta?.completedAt) > 0) {
+          saveCompletedStory(S.lastEndingType || stored?.meta?.endingType || 'good');
+        } else {
+          localStorage.removeItem(storyKey());
+        }
         localStorage.removeItem(progressKey());
         renderSetupHistory();
         S.story = null; S.imageCache = {};
