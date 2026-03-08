@@ -3282,6 +3282,11 @@
       return themeStatus[statusType] || ENDING_STATUS.default[statusType] || ENDING_STATUS.default.good;
     }
 
+    function endingRecapLabel(type) {
+      const alignment = endingStatusFor(type)?.alignment;
+      return alignment ? String(alignment).toLowerCase() : type;
+    }
+
     function formatRuntime(ms) {
       const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
       const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
@@ -3331,7 +3336,7 @@
         alignment: `${status.alignment} • ${rank}`,
         score,
         rank,
-        recap: `${tally.good} ascendant • ${tally.neutral} balanced • ${tally.bad} fallen decisions`,
+        recap: `${tally.good} ${endingRecapLabel('good')} • ${tally.neutral} ${endingRecapLabel('neutral')} • ${tally.bad} ${endingRecapLabel('bad')} decisions`,
       };
     }
 
