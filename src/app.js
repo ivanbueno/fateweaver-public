@@ -524,7 +524,7 @@
       string(){return `hsl(${this._h.toFixed(1)},${(this._s*100).toFixed(1)}%,${(this._l*100).toFixed(1)}%)`;}
     }
 
-    /* ─── TERRAIN GENERATOR ─────────────────────────────────── */
+    /* ─── LOCAL SVG GENERATORS ──────────────────────────────── */
     const TERRAIN_BASE_COLORS = {
       noir:      '#3d4a5c',
       gothic:    '#4a2d5e',
@@ -532,6 +532,22 @@
       samurai:   '#7a3020',
       cyberpunk: '#00b4d8',
       romantic:  '#c0607a',
+    };
+    const STARRY_BASE_COLORS = {
+      noir:      '#0f162d',
+      gothic:    '#1b1233',
+      space:     '#060d2b',
+      samurai:   '#211325',
+      cyberpunk: '#042035',
+      romantic:  '#24142f',
+    };
+    const OCEAN_BASE_COLORS = {
+      noir:      '#20435d',
+      gothic:    '#2a2d63',
+      space:     '#1d4f80',
+      samurai:   '#355170',
+      cyberpunk: '#007c9a',
+      romantic:  '#4c5f8d',
     };
 
     function _seedStr(str) {
@@ -611,6 +627,361 @@
   <rect x="0" y="0" width="100%" height="${H}" fill="url(#tfFog)"/>
   ${paths.slice(3).join('\n  ')}
 </svg>`;
+    }
+
+    function generateStarrySkySvg(genre, imagePrompt) {
+      const themeKey = (GENRE_CFG[genre] || {}).key || 'space';
+      const baseColor = new Col(STARRY_BASE_COLORS[themeKey] || '#0a1733');
+      const rng = _mkRng(_seedStr(`sky:${imagePrompt || genre || 'starry'}`));
+
+      const W = 600, H = 300;
+      const moonX = (rng() * 0.6 + 0.2) * W;
+      const moonY = (rng() * 0.35 + 0.12) * H;
+      const moonR = 24 + rng() * 22;
+      const moonPhase = (rng() * 0.9) - 0.45;
+      const starCount = 90 + Math.floor(rng() * 90);
+      const cometCount = 1 + Math.floor(rng() * 3);
+      const nebulaCount = 2 + Math.floor(rng() * 3);
+      const planetCount = 1 + Math.floor(rng() * 3);
+      const constellationCount = 1 + Math.floor(rng() * 2);
+
+      const defs = [];
+      const nebulae = [];
+      const stars = [];
+      const constellations = [];
+      const comets = [];
+      const planets = [];
+
+      const skyCenter = baseColor.rotate(230).saturate(0.2).lighten(0.5).string();
+      const skyEdge = baseColor.rotate(190).desaturate(0.15).darken(0.6).string();
+      const moonLight = baseColor.rotate(170).desaturate(0.8).lighten(1.6).string();
+      const moonShade = baseColor.rotate(250).desaturate(0.1).darken(0.35).string();
+      const moonCutout = baseColor.rotate(220).desaturate(0.2).darken(0.45).string();
+      const horizonShade = baseColor.rotate(180).desaturate(0.3).darken(0.55).string();
+      const starCold = baseColor.rotate(180).desaturate(0.65).lighten(1.55).string();
+      const starWarm = baseColor.rotate(95).desaturate(0.55).lighten(1.45).string();
+      const cometColor = baseColor.rotate(180).desaturate(0.65).lighten(1.75).string();
+
+      defs.push(`<radialGradient id="skyBg" cx="50%" cy="18%" r="88%">
+      <stop offset="0%" stop-color="${skyCenter}"/>
+      <stop offset="65%" stop-color="${baseColor.desaturate(0.15).darken(0.22).string()}"/>
+      <stop offset="100%" stop-color="${skyEdge}"/>
+    </radialGradient>`);
+      defs.push(`<radialGradient id="moonGrad" cx="35%" cy="30%" r="72%">
+      <stop offset="0%" stop-color="${moonLight}"/>
+      <stop offset="100%" stop-color="${moonShade}"/>
+    </radialGradient>`);
+      defs.push(`<filter id="skyGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1.8" result="soft"/>
+      <feMerge>
+        <feMergeNode in="soft"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>`);
+      defs.push(`<filter id="skyBlur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>`);
+      defs.push(`<linearGradient id="horizon" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${horizonShade}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${horizonShade}" stop-opacity="0.72"/>
+    </linearGradient>`);
+
+      for (let i = 0; i < nebulaCount; i++) {
+        const nx = rng() * W;
+        const ny = rng() * H * 0.72;
+        const nrx = 70 + rng() * 180;
+        const nry = 24 + rng() * 68;
+        const rot = -35 + rng() * 70;
+        const nebulaColor = baseColor
+          .rotate((rng() * 110) - 55)
+          .saturate(0.2 + rng() * 0.35)
+          .lighten(0.32 + rng() * 0.38)
+          .string();
+        nebulae.push(`<ellipse cx="${nx.toFixed(1)}" cy="${ny.toFixed(1)}" rx="${nrx.toFixed(1)}" ry="${nry.toFixed(1)}" transform="rotate(${rot.toFixed(1)} ${nx.toFixed(1)} ${ny.toFixed(1)})" fill="${nebulaColor}" fill-opacity="${(0.08 + rng() * 0.16).toFixed(2)}" filter="url(#skyBlur)"/>`);
+      }
+
+      for (let i = 0; i < starCount; i++) {
+        const x = rng() * W;
+        const y = rng() * H * 0.96;
+        const r = rng() < 0.84 ? 0.3 + rng() * 1.2 : 0.9 + rng() * 1.8;
+        const op = 0.24 + rng() * 0.62;
+        const fill = rng() < 0.24 ? starWarm : starCold;
+        stars.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${fill}" fill-opacity="${op.toFixed(2)}"/>`);
+        if (rng() < 0.08) {
+          const ray = r * (2.5 + rng() * 2.5);
+          const rayOp = Math.min(0.9, op + 0.12);
+          stars.push(`<g stroke="${fill}" stroke-opacity="${rayOp.toFixed(2)}" stroke-linecap="round">
+        <line x1="${(x - ray).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + ray).toFixed(1)}" y2="${y.toFixed(1)}" stroke-width="0.5"/>
+        <line x1="${x.toFixed(1)}" y1="${(y - ray).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + ray).toFixed(1)}" stroke-width="0.5"/>
+      </g>`);
+        }
+      }
+
+      for (let i = 0; i < constellationCount; i++) {
+        const nodes = 3 + Math.floor(rng() * 4);
+        const ax = rng() * (W * 0.8) + (W * 0.1);
+        const ay = rng() * (H * 0.5) + (H * 0.1);
+        const pts = [];
+        for (let n = 0; n < nodes; n++) {
+          const px = ax + (n * 28) + ((rng() * 40) - 20);
+          const py = ay + ((rng() * 44) - 22);
+          pts.push([Math.max(8, Math.min(W - 8, px)), Math.max(8, Math.min(H - 8, py))]);
+        }
+        constellations.push(`<polyline points="${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')}" fill="none" stroke="${starCold}" stroke-opacity="${(0.14 + rng() * 0.2).toFixed(2)}" stroke-width="0.6"/>`);
+        pts.forEach(([x, y]) => {
+          constellations.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.3" fill="${starCold}" fill-opacity="0.72"/>`);
+        });
+      }
+
+      for (let i = 0; i < planetCount; i++) {
+        const px = rng() * W;
+        const py = rng() * H * 0.5 + 10;
+        const pr = 8 + rng() * 20;
+        const pid = `planetGrad${i}`;
+        const planetA = baseColor.rotate((rng() * 120) - 60).saturate(0.2 + rng() * 0.45).lighten(0.28 + rng() * 0.5).string();
+        const planetB = baseColor.rotate((rng() * 120) - 60).desaturate(0.22).darken(0.18 + rng() * 0.35).string();
+        defs.push(`<radialGradient id="${pid}" cx="30%" cy="28%" r="78%">
+      <stop offset="0%" stop-color="${planetA}"/>
+      <stop offset="100%" stop-color="${planetB}"/>
+    </radialGradient>`);
+        planets.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${pr.toFixed(1)}" fill="url(#${pid})" fill-opacity="${(0.5 + rng() * 0.4).toFixed(2)}"/>`);
+        if (rng() < 0.45) {
+          planets.push(`<ellipse cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" rx="${(pr * 1.85).toFixed(1)}" ry="${(pr * 0.58).toFixed(1)}" transform="rotate(${(-28 + rng() * 56).toFixed(1)} ${px.toFixed(1)} ${py.toFixed(1)})" fill="none" stroke="${planetA}" stroke-opacity="0.48" stroke-width="1"/>`);
+        }
+      }
+
+      for (let i = 0; i < cometCount; i++) {
+        const hx = (rng() * 0.78 + 0.15) * W;
+        const hy = (rng() * 0.45 + 0.07) * H;
+        const len = 90 + rng() * 170;
+        const angle = (20 + rng() * 38) * (rng() < 0.5 ? 1 : -1);
+        const rad = angle * Math.PI / 180;
+        const tx = hx - Math.cos(rad) * len;
+        const ty = hy + Math.sin(rad) * len;
+        const tailId = `cometTail${i}`;
+        defs.push(`<linearGradient id="${tailId}" gradientUnits="userSpaceOnUse" x1="${tx.toFixed(1)}" y1="${ty.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${hy.toFixed(1)}">
+      <stop offset="0%" stop-color="${cometColor}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${cometColor}" stop-opacity="0.95"/>
+    </linearGradient>`);
+        comets.push(`<path d="M ${tx.toFixed(1)} ${ty.toFixed(1)} L ${hx.toFixed(1)} ${hy.toFixed(1)}" stroke="url(#${tailId})" stroke-width="${(1.1 + rng() * 2.2).toFixed(2)}" stroke-linecap="round"/>`);
+        comets.push(`<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${(1.7 + rng() * 2.2).toFixed(2)}" fill="${cometColor}" fill-opacity="0.95" filter="url(#skyGlow)"/>`);
+      }
+
+      return `<svg width="100%" height="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    ${defs.join('\n    ')}
+  </defs>
+  <rect x="0" y="0" width="${W}" height="${H}" fill="url(#skyBg)"/>
+  ${nebulae.join('\n  ')}
+  ${stars.join('\n  ')}
+  ${constellations.join('\n  ')}
+  ${planets.join('\n  ')}
+  ${comets.join('\n  ')}
+  <circle cx="${moonX.toFixed(1)}" cy="${moonY.toFixed(1)}" r="${moonR.toFixed(1)}" fill="url(#moonGrad)" fill-opacity="0.92" filter="url(#skyGlow)"/>
+  <circle cx="${(moonX + moonPhase * moonR * 1.28).toFixed(1)}" cy="${moonY.toFixed(1)}" r="${(moonR * 0.94).toFixed(1)}" fill="${moonCutout}" fill-opacity="0.56"/>
+  <circle cx="${moonX.toFixed(1)}" cy="${moonY.toFixed(1)}" r="${(moonR * 1.35).toFixed(1)}" fill="none" stroke="${moonLight}" stroke-opacity="0.18" stroke-width="1.1"/>
+  <rect x="0" y="0" width="${W}" height="${H}" fill="url(#horizon)"/>
+</svg>`;
+    }
+
+    function generateOceanSvg(genre, imagePrompt) {
+      const themeKey = (GENRE_CFG[genre] || {}).key || 'space';
+      const seed = _seedStr(`ocean:${imagePrompt || genre || 'ocean'}`);
+      const baseColor = new Col(OCEAN_BASE_COLORS[themeKey] || '#14648b');
+      const rng = _mkRng(seed);
+
+      const W = 600, H = 300;
+      const horizonY = 118 + rng() * 52;
+      const sunset = rng() < 0.82;
+      const underwater = rng() < 0.56;
+      const lighthouse = rng() < 0.42;
+      const boatCount = rng() < 0.85 ? (1 + Math.floor(rng() * 3)) : 0;
+      const birdCount = sunset && rng() < 0.9 ? (4 + Math.floor(rng() * 8)) : 0;
+      const waveLayers = 4 + Math.floor(rng() * 3);
+      const coralCount = underwater ? (9 + Math.floor(rng() * 14)) : 0;
+      const fishCount = underwater ? (3 + Math.floor(rng() * 8)) : 0;
+      const sunX = (0.18 + rng() * 0.64) * W;
+      const sunY = (0.14 + rng() * 0.2) * H;
+      const sunR = 18 + rng() * 30;
+
+      const sid = seed.toString(36);
+      const skyGradId = `oSky${sid}`;
+      const seaGradId = `oSea${sid}`;
+      const sunGradId = `oSun${sid}`;
+      const hazeGradId = `oHaze${sid}`;
+      const beamGradId = `oBeam${sid}`;
+
+      const defs = [];
+      const waves = [];
+      const boats = [];
+      const birds = [];
+      const coral = [];
+      const fish = [];
+      const beamPaths = [];
+
+      const skyTop = sunset
+        ? baseColor.rotate(-25).saturate(0.25).darken(0.35).string()
+        : baseColor.rotate(205).desaturate(0.1).darken(0.5).string();
+      const skyMid = sunset
+        ? baseColor.rotate(18).saturate(0.45).lighten(0.55).string()
+        : baseColor.rotate(185).desaturate(0.05).darken(0.2).string();
+      const skyLow = sunset
+        ? baseColor.rotate(55).saturate(0.48).lighten(0.75).string()
+        : baseColor.rotate(170).desaturate(0.05).lighten(0.1).string();
+      const seaTop = baseColor.rotate(170).saturate(0.15).lighten(0.12).string();
+      const seaBottom = baseColor.rotate(150).desaturate(0.2).darken(0.45).string();
+      const sunInner = baseColor.rotate(75).saturate(0.65).lighten(1.2).string();
+      const sunOuter = baseColor.rotate(35).saturate(0.5).lighten(0.62).string();
+      const crestColor = baseColor.rotate(160).desaturate(0.25).lighten(0.95).string();
+
+      defs.push(`<linearGradient id="${skyGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${skyTop}"/>
+      <stop offset="58%" stop-color="${skyMid}"/>
+      <stop offset="100%" stop-color="${skyLow}"/>
+    </linearGradient>`);
+      defs.push(`<linearGradient id="${seaGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${seaTop}"/>
+      <stop offset="100%" stop-color="${seaBottom}"/>
+    </linearGradient>`);
+      defs.push(`<radialGradient id="${sunGradId}" cx="50%" cy="50%" r="62%">
+      <stop offset="0%" stop-color="${sunInner}" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="${sunOuter}" stop-opacity="0"/>
+    </radialGradient>`);
+      defs.push(`<linearGradient id="${hazeGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${baseColor.rotate(180).lighten(0.65).string()}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(145).darken(0.2).string()}" stop-opacity="0.55"/>
+    </linearGradient>`);
+      defs.push(`<linearGradient id="${beamGradId}" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${baseColor.rotate(80).lighten(1.15).string()}" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="${baseColor.rotate(80).lighten(1.15).string()}" stop-opacity="0"/>
+    </linearGradient>`);
+
+      for (let layer = 0; layer < waveLayers; layer++) {
+        const yBase = horizonY + 16 + layer * ((H - horizonY - 16) / waveLayers);
+        const amp = 4 + layer * 2 + rng() * 3;
+        const freq = 0.012 + rng() * 0.02;
+        const phase = rng() * 300;
+        const waveColor = baseColor.rotate(165 + layer * 6).desaturate(0.2).darken(0.08 + layer * 0.08).string();
+        let d = `M 0 ${yBase.toFixed(1)} `;
+        let crest = `M 0 ${yBase.toFixed(1)} `;
+        for (let x = 0; x <= W; x += 12) {
+          const y = yBase
+            + Math.sin((x + phase) * freq) * amp
+            + Math.sin((x + phase) * freq * 0.45) * (amp * 0.45);
+          d += `L ${x} ${y.toFixed(1)} `;
+          crest += `L ${x} ${y.toFixed(1)} `;
+        }
+        d += `L ${W} ${H} L 0 ${H} Z`;
+        waves.push(`<path d="${d}" fill="${waveColor}" fill-opacity="${Math.min(0.82, 0.3 + layer * 0.1).toFixed(2)}"/>`);
+        waves.push(`<path d="${crest}" fill="none" stroke="${crestColor}" stroke-opacity="${(0.14 + layer * 0.05).toFixed(2)}" stroke-width="${(0.7 + layer * 0.12).toFixed(2)}"/>`);
+      }
+
+      for (let i = 0; i < boatCount; i++) {
+        const bx = 70 + rng() * 460;
+        const by = horizonY + (rng() * 8 - 4);
+        const hullW = 26 + rng() * 24;
+        const hullH = 5 + rng() * 4;
+        const sailH = 16 + rng() * 18;
+        const sailDir = rng() < 0.5 ? -1 : 1;
+        const hullColor = baseColor.rotate(130).desaturate(0.35).darken(0.5).string();
+        const sailColor = baseColor.rotate(85).desaturate(0.25).lighten(0.95).string();
+        boats.push(`<g>
+      <path d="M ${(bx - hullW / 2).toFixed(1)} ${by.toFixed(1)} Q ${bx.toFixed(1)} ${(by + hullH).toFixed(1)} ${(bx + hullW / 2).toFixed(1)} ${by.toFixed(1)} L ${(bx + hullW * 0.44).toFixed(1)} ${(by + hullH + 1.2).toFixed(1)} L ${(bx - hullW * 0.44).toFixed(1)} ${(by + hullH + 1.2).toFixed(1)} Z" fill="${hullColor}" fill-opacity="0.92"/>
+      <line x1="${bx.toFixed(1)}" y1="${(by - 1).toFixed(1)}" x2="${bx.toFixed(1)}" y2="${(by - sailH).toFixed(1)}" stroke="${hullColor}" stroke-width="1.1"/>
+      <path d="M ${bx.toFixed(1)} ${(by - sailH + 1).toFixed(1)} L ${(bx + sailDir * (hullW * 0.45)).toFixed(1)} ${(by - sailH * 0.45).toFixed(1)} L ${bx.toFixed(1)} ${(by - 1).toFixed(1)} Z" fill="${sailColor}" fill-opacity="0.86"/>
+      <line x1="${(bx - hullW * 0.52).toFixed(1)}" y1="${(by + hullH + 2.5).toFixed(1)}" x2="${(bx + hullW * 0.52).toFixed(1)}" y2="${(by + hullH + 2.5).toFixed(1)}" stroke="${sailColor}" stroke-opacity="0.2" stroke-width="0.8"/>
+    </g>`);
+      }
+
+      for (let i = 0; i < birdCount; i++) {
+        const x = rng() * W;
+        const y = 18 + rng() * (horizonY * 0.5);
+        const span = 4 + rng() * 10;
+        const rise = 1 + rng() * 4;
+        birds.push(`<path d="M ${(x - span).toFixed(1)} ${y.toFixed(1)} Q ${x.toFixed(1)} ${(y - rise).toFixed(1)} ${(x + span).toFixed(1)} ${y.toFixed(1)} M ${x.toFixed(1)} ${y.toFixed(1)} Q ${(x + span).toFixed(1)} ${(y - rise * 0.9).toFixed(1)} ${(x + span * 2).toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${baseColor.rotate(120).desaturate(0.4).darken(0.55).string()}" stroke-opacity="${(0.45 + rng() * 0.35).toFixed(2)}" stroke-width="0.9" stroke-linecap="round"/>`);
+      }
+
+      if (lighthouse) {
+        const onRight = rng() < 0.5;
+        const lx = onRight ? (W - (45 + rng() * 45)) : (45 + rng() * 45);
+        const baseY = horizonY + 26 + rng() * 18;
+        const towerH = 68 + rng() * 36;
+        const topW = 10 + rng() * 8;
+        const baseW = 26 + rng() * 14;
+        const lampY = baseY - towerH + 8;
+        const beamLen = 150 + rng() * 220;
+        const beamSpread = 14 + rng() * 18;
+        const dir = onRight ? -1 : 1;
+        const lighthouseColor = baseColor.rotate(145).desaturate(0.3).lighten(0.7).string();
+        const trimColor = baseColor.rotate(120).desaturate(0.4).darken(0.4).string();
+        const beamX = lx + dir * beamLen;
+        beamPaths.push(`<path d="M ${lx.toFixed(1)} ${lampY.toFixed(1)} L ${beamX.toFixed(1)} ${(lampY - beamSpread).toFixed(1)} L ${beamX.toFixed(1)} ${(lampY + beamSpread).toFixed(1)} Z" fill="url(#${beamGradId})"/>`);
+        if (rng() < 0.6) {
+          const beamX2 = lx + dir * (beamLen * 0.7);
+          beamPaths.push(`<path d="M ${lx.toFixed(1)} ${(lampY + 2.5).toFixed(1)} L ${beamX2.toFixed(1)} ${(lampY - beamSpread * 0.62).toFixed(1)} L ${beamX2.toFixed(1)} ${(lampY + beamSpread * 0.62).toFixed(1)} Z" fill="url(#${beamGradId})" fill-opacity="0.75"/>`);
+        }
+        boats.push(`<g>
+      <path d="M ${(lx - 44).toFixed(1)} ${(baseY + 8).toFixed(1)} Q ${lx.toFixed(1)} ${(baseY - 12).toFixed(1)} ${(lx + 44).toFixed(1)} ${(baseY + 8).toFixed(1)} L ${(lx + 46).toFixed(1)} ${(baseY + 14).toFixed(1)} L ${(lx - 46).toFixed(1)} ${(baseY + 14).toFixed(1)} Z" fill="${trimColor}" fill-opacity="0.6"/>
+      <path d="M ${(lx - topW / 2).toFixed(1)} ${(baseY - towerH).toFixed(1)} L ${(lx + topW / 2).toFixed(1)} ${(baseY - towerH).toFixed(1)} L ${(lx + baseW / 2).toFixed(1)} ${baseY.toFixed(1)} L ${(lx - baseW / 2).toFixed(1)} ${baseY.toFixed(1)} Z" fill="${lighthouseColor}"/>
+      <rect x="${(lx - topW * 0.8).toFixed(1)}" y="${(baseY - towerH - 10).toFixed(1)}" width="${(topW * 1.6).toFixed(1)}" height="7" rx="1.5" fill="${trimColor}"/>
+      <rect x="${(lx - topW * 0.45).toFixed(1)}" y="${(baseY - towerH - 7).toFixed(1)}" width="${(topW * 0.9).toFixed(1)}" height="5" rx="1.4" fill="${baseColor.rotate(75).saturate(0.55).lighten(1.1).string()}"/>
+      <line x1="${(lx - baseW * 0.35).toFixed(1)}" y1="${(baseY - towerH * 0.62).toFixed(1)}" x2="${(lx + baseW * 0.35).toFixed(1)}" y2="${(baseY - towerH * 0.62).toFixed(1)}" stroke="${trimColor}" stroke-width="1" stroke-opacity="0.35"/>
+    </g>`);
+      }
+
+      if (underwater) {
+        for (let i = 0; i < coralCount; i++) {
+          const cx = 8 + rng() * (W - 16);
+          const baseY = H - (2 + rng() * 12);
+          const h = 20 + rng() * 66;
+          const w = 4 + rng() * 10;
+          const kind = rng();
+          const coralColor = baseColor.rotate(35 + rng() * 60).saturate(0.4 + rng() * 0.35).lighten(0.2 + rng() * 0.55).string();
+          if (kind < 0.45) {
+            coral.push(`<path d="M ${cx.toFixed(1)} ${baseY.toFixed(1)} C ${(cx - w * 0.5).toFixed(1)} ${(baseY - h * 0.35).toFixed(1)} ${(cx - w * 0.9).toFixed(1)} ${(baseY - h * 0.7).toFixed(1)} ${cx.toFixed(1)} ${(baseY - h).toFixed(1)} M ${cx.toFixed(1)} ${(baseY - h * 0.56).toFixed(1)} C ${(cx + w * 0.6).toFixed(1)} ${(baseY - h * 0.72).toFixed(1)} ${(cx + w * 0.9).toFixed(1)} ${(baseY - h * 0.93).toFixed(1)} ${(cx + w * 0.3).toFixed(1)} ${(baseY - h * 1.06).toFixed(1)}" fill="none" stroke="${coralColor}" stroke-width="${(1 + rng() * 2.2).toFixed(2)}" stroke-linecap="round" stroke-opacity="${(0.55 + rng() * 0.3).toFixed(2)}"/>`);
+          } else if (kind < 0.75) {
+            coral.push(`<ellipse cx="${cx.toFixed(1)}" cy="${(baseY - h * 0.55).toFixed(1)}" rx="${(w * 1.3).toFixed(1)}" ry="${(h * 0.45).toFixed(1)}" fill="${coralColor}" fill-opacity="${(0.22 + rng() * 0.26).toFixed(2)}"/>`);
+          } else {
+            coral.push(`<path d="M ${(cx - w).toFixed(1)} ${baseY.toFixed(1)} Q ${cx.toFixed(1)} ${(baseY - h * 0.5).toFixed(1)} ${(cx + w).toFixed(1)} ${(baseY - h).toFixed(1)}" fill="none" stroke="${coralColor}" stroke-width="${(1.2 + rng() * 1.8).toFixed(2)}" stroke-linecap="round" stroke-opacity="${(0.45 + rng() * 0.28).toFixed(2)}"/>`);
+          }
+        }
+
+        for (let i = 0; i < fishCount; i++) {
+          const fx = 20 + rng() * (W - 40);
+          const fy = horizonY + 16 + rng() * (H - horizonY - 34);
+          const fr = 3 + rng() * 5;
+          const fdir = rng() < 0.5 ? -1 : 1;
+          const fishColor = baseColor.rotate(55 + rng() * 55).saturate(0.35 + rng() * 0.45).lighten(0.35 + rng() * 0.45).string();
+          fish.push(`<g fill="${fishColor}" fill-opacity="${(0.45 + rng() * 0.3).toFixed(2)}">
+        <ellipse cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" rx="${(fr * 1.45).toFixed(1)}" ry="${fr.toFixed(1)}"/>
+        <path d="M ${(fx - fdir * fr * 1.45).toFixed(1)} ${fy.toFixed(1)} L ${(fx - fdir * fr * 2.5).toFixed(1)} ${(fy - fr * 0.75).toFixed(1)} L ${(fx - fdir * fr * 2.5).toFixed(1)} ${(fy + fr * 0.75).toFixed(1)} Z"/>
+      </g>`);
+        }
+      }
+
+      return `<svg width="100%" height="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    ${defs.join('\n    ')}
+  </defs>
+  <rect x="0" y="0" width="${W}" height="${horizonY.toFixed(1)}" fill="url(#${skyGradId})"/>
+  ${sunset ? `<circle cx="${sunX.toFixed(1)}" cy="${sunY.toFixed(1)}" r="${sunR.toFixed(1)}" fill="url(#${sunGradId})"/>` : ''}
+  ${birds.join('\n  ')}
+  <rect x="0" y="${horizonY.toFixed(1)}" width="${W}" height="${(H - horizonY).toFixed(1)}" fill="url(#${seaGradId})"/>
+  ${beamPaths.join('\n  ')}
+  ${waves.join('\n  ')}
+  ${boats.join('\n  ')}
+  ${underwater ? `<rect x="0" y="${(horizonY + 1).toFixed(1)}" width="${W}" height="${(H - horizonY - 1).toFixed(1)}" fill="url(#${hazeGradId})"/>` : ''}
+  ${fish.join('\n  ')}
+  ${coral.join('\n  ')}
+</svg>`;
+    }
+
+    function generateSvg(genre, imagePrompt) {
+      const rng = _mkRng(_seedStr(`scene:${imagePrompt || genre || 'svg'}`));
+      const pick = rng();
+      if (pick < 0.34) return generateStarrySkySvg(genre, imagePrompt);
+      if (pick < 0.67) return generateTerrainSvg(genre, imagePrompt);
+      return generateOceanSvg(genre, imagePrompt);
     }
     let timerInterval = null;
     let verbInterval  = null;
@@ -2277,15 +2648,15 @@
         let provider = S.imageMode === 'terrain' ? 'terrain' : 'lambda';
         let fallbackUsed = 0;
         if (S.imageMode === 'terrain') {
-          data = { type: 'svg', data: generateTerrainSvg(S.genre, page.imagePrompt) };
+          data = { type: 'svg', data: generateSvg(S.genre, page.imagePrompt) };
         } else {
           try {
             const result = await callLambda({ action: 'generateImage', prompt: page.imagePrompt, genre: S.genre });
             if (result.success) {
               data = { type: result.type, data: result.data, mimeType: result.mimeType };
             } else {
-              console.warn('Image gen failed, using terrain fallback:', result.error);
-              data = { type: 'svg', data: generateTerrainSvg(S.genre, page.imagePrompt) };
+              console.warn('Image gen failed, using local SVG fallback:', result.error);
+              data = { type: 'svg', data: generateSvg(S.genre, page.imagePrompt) };
               provider = 'terrain';
               fallbackUsed = 1;
               trackEvent('image_request_fallback', gaStoryParams({
@@ -2295,8 +2666,8 @@
               }));
             }
           } catch (lambdaErr) {
-            console.warn('Image gen failed, using terrain fallback:', lambdaErr.message);
-            data = { type: 'svg', data: generateTerrainSvg(S.genre, page.imagePrompt) };
+            console.warn('Image gen failed, using local SVG fallback:', lambdaErr.message);
+            data = { type: 'svg', data: generateSvg(S.genre, page.imagePrompt) };
             provider = 'terrain';
             fallbackUsed = 1;
             trackEvent('image_request_fallback', gaStoryParams({
