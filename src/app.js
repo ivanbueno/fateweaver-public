@@ -1652,7 +1652,9 @@
           const armW = wC * rand(0.56, 0.94);
           const armX = x + side * (wC * 0.52 - armW * 0.5);
           shape += `<rect x="${(armX - armW / 2).toFixed(1)}" y="${(armY - armH).toFixed(1)}" width="${armW.toFixed(1)}" height="${armH.toFixed(1)}" rx="${(armW * 0.42).toFixed(1)}"/>`;
-          shape += `<rect x="${(armX).toFixed(1)}" y="${(armY - armW * 0.55).toFixed(1)}" width="${(side * armW * 1.2).toFixed(1)}" height="${(armW * 0.8).toFixed(1)}" rx="${(armW * 0.4).toFixed(1)}"/>`;
+          const armStubW = armW * 1.2;
+          const armStubX = side < 0 ? (armX - armStubW) : armX;
+          shape += `<rect x="${armStubX.toFixed(1)}" y="${(armY - armW * 0.55).toFixed(1)}" width="${armStubW.toFixed(1)}" height="${(armW * 0.8).toFixed(1)}" rx="${(armW * 0.4).toFixed(1)}"/>`;
         }
         cactusItems.push({
           y,
