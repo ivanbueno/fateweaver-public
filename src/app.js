@@ -549,6 +549,22 @@
       cyberpunk: '#007c9a',
       romantic:  '#4c5f8d',
     };
+    const FOREST_BASE_COLORS = {
+      noir:      '#1a2a25',
+      gothic:    '#1d2330',
+      space:     '#1f3045',
+      samurai:   '#2f3824',
+      cyberpunk: '#113536',
+      romantic:  '#2d2f2b',
+    };
+    const DESERT_BASE_COLORS = {
+      noir:      '#8d6a3a',
+      gothic:    '#7f6040',
+      space:     '#9a7d4a',
+      samurai:   '#a57a45',
+      cyberpunk: '#b08a4f',
+      romantic:  '#a37652',
+    };
 
     function _seedStr(str) {
       let h = 0;
@@ -976,12 +992,621 @@
 </svg>`;
     }
 
+    function generateForestSvg(genre, imagePrompt) {
+      const themeKey = (GENRE_CFG[genre] || {}).key || 'gothic';
+      const seed = _seedStr(`forest:${imagePrompt || genre || 'forest'}`);
+      const baseColor = new Col(FOREST_BASE_COLORS[themeKey] || '#1f2f24');
+      const rng = _mkRng(seed);
+
+      const W = 600, H = 300;
+      const sid = seed.toString(36);
+      const bgGradId = `fBg${sid}`;
+      const glowFilterId = `fGlow${sid}`;
+      const fogGradId = `fFog${sid}`;
+
+      const rand = (a = 0, b = 1) => a + rng() * (b - a);
+      const chance = (p) => rng() < p;
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const smoothstep = (t) => t * t * (3 - 2 * t);
+
+      function hashInt(n) {
+        let x = Math.imul((n | 0) ^ seed, 2246822519);
+        x ^= x >>> 13;
+        x = Math.imul(x, 3266489917);
+        x ^= x >>> 16;
+        return (x >>> 0) / 4294967295;
+      }
+      function noise1D(x) {
+        const i = Math.floor(x);
+        const f = x - i;
+        const a = hashInt(i);
+        const b = hashInt(i + 1);
+        return lerp(a, b, smoothstep(f));
+      }
+      function fbm(x, octaves = 4) {
+        let sum = 0;
+        let amp = 0.55;
+        let freq = 1;
+        let norm = 0;
+        for (let o = 0; o < octaves; o++) {
+          sum += noise1D(x * freq) * amp;
+          norm += amp;
+          amp *= 0.5;
+          freq *= 2.03;
+        }
+        return norm > 0 ? sum / norm : 0;
+      }
+
+      const canopyFromAbove = chance(0.28);
+      const hasFireflies = chance(canopyFromAbove ? 0.45 : 0.78);
+      const hasFog = chance(canopyFromAbove ? 0.42 : 0.84);
+
+      let pineWeight = rand(0.2, 1.0);
+      let birchWeight = rand(0.2, 0.95);
+      let jungleWeight = rand(0.2, 1.1);
+      if (canopyFromAbove) {
+        jungleWeight += rand(0.4, 1.1);
+        pineWeight *= rand(0.35, 0.75);
+      }
+
+      const defs = [];
+      const bgLayers = [];
+      const ridgeLayers = [];
+      const canopyLayers = [];
+      const forestLayers = [];
+      const undergrowthLayers = [];
+      const fireflyLayers = [];
+      const fogLayers = [];
+
+      const skyTop = baseColor.rotate(185).desaturate(0.1).darken(0.55).string();
+      const skyMid = baseColor.rotate(145).desaturate(0.06).darken(0.28).string();
+      const skyLow = baseColor.rotate(95).saturate(0.1).darken(0.07).string();
+      const groundShade = baseColor.rotate(76).desaturate(0.22).darken(0.57).string();
+      const fogColor = baseColor.rotate(195).desaturate(0.2).lighten(0.95).string();
+
+      defs.push(`<linearGradient id="${bgGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${skyTop}"/>
+      <stop offset="58%" stop-color="${skyMid}"/>
+      <stop offset="100%" stop-color="${skyLow}"/>
+    </linearGradient>`);
+      defs.push(`<filter id="${glowFilterId}" x="-50%" y="-50%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="${rand(1.8, 2.8).toFixed(2)}" result="soft"/>
+      <feMerge>
+        <feMergeNode in="soft"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>`);
+      defs.push(`<linearGradient id="${fogGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${fogColor}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${fogColor}" stop-opacity="${rand(0.35, 0.62).toFixed(2)}"/>
+    </linearGradient>`);
+
+      bgLayers.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="url(#${bgGradId})"/>`);
+
+      const horizonY = canopyFromAbove ? rand(H * 0.72, H * 0.88) : rand(H * 0.56, H * 0.7);
+      const groundBase = canopyFromAbove ? rand(H * 0.84, H * 0.94) : rand(H * 0.78, H * 0.86);
+      const groundAmp = rand(12, 30);
+      const groundFreq = rand(0.012, 0.026);
+      const groundPhase = rand(0, 900);
+      const groundNoiseScale = rand(0.007, 0.015);
+
+      const groundY = (x) => {
+        const n = (fbm((x + groundPhase) * groundNoiseScale, 4) - 0.5) * 2;
+        const wave = Math.sin((x + groundPhase) * groundFreq) * groundAmp;
+        return groundBase + wave * 0.3 + n * groundAmp;
+      };
+
+      for (let r = 0; r < 2 + Math.floor(rand(0, 3)); r++) {
+        const yBase = horizonY + r * rand(8, 18);
+        const amp = rand(10, 24) * (r + 1) * 0.5;
+        const freq = rand(0.008, 0.018);
+        const ridgeColor = baseColor.rotate(90 + r * 10).darken(0.25 + r * 0.14).string();
+        let ridge = `M 0 ${(yBase + amp).toFixed(1)} `;
+        for (let x = 0; x <= W; x += 14) {
+          const y = yBase + Math.sin((x + rand(0, 300)) * freq) * amp + (fbm((x + r * 91) * 0.01, 3) - 0.5) * amp * 1.2;
+          ridge += `L ${x} ${y.toFixed(1)} `;
+        }
+        ridge += `L ${W} ${H} L 0 ${H} Z`;
+        ridgeLayers.push(`<path d="${ridge}" fill="${ridgeColor}" fill-opacity="${(0.18 + r * 0.1).toFixed(2)}"/>`);
+      }
+
+      let groundPath = `M 0 ${groundY(0).toFixed(1)} `;
+      for (let x = 0; x <= W; x += 12) {
+        groundPath += `L ${x} ${groundY(x).toFixed(1)} `;
+      }
+      groundPath += `L ${W} ${H} L 0 ${H} Z`;
+      ridgeLayers.push(`<path d="${groundPath}" fill="${groundShade}" fill-opacity="${canopyFromAbove ? '0.48' : '0.78'}"/>`);
+
+      const canopyCount = canopyFromAbove ? 180 + Math.floor(rand(0, 110)) : 40 + Math.floor(rand(0, 40));
+      for (let i = 0; i < canopyCount; i++) {
+        const cx = rand(-24, W + 24);
+        const cy = canopyFromAbove ? rand(-10, H * 0.98) : rand(-24, H * 0.55);
+        const rx = canopyFromAbove ? rand(12, 46) : rand(16, 40);
+        const ry = rx * rand(0.65, 1.2);
+        const leaf = baseColor
+          .rotate(rand(64, 126))
+          .saturate(rand(0.08, 0.34))
+          .lighten(rand(0.02, 0.2))
+          .string();
+        canopyLayers.push(`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${leaf}" fill-opacity="${(canopyFromAbove ? rand(0.36, 0.82) : rand(0.16, 0.42)).toFixed(2)}"/>`);
+      }
+      const canopyGapCount = canopyFromAbove ? 24 + Math.floor(rand(0, 16)) : 7 + Math.floor(rand(0, 6));
+      for (let i = 0; i < canopyGapCount; i++) {
+        const cx = rand(0, W);
+        const cy = canopyFromAbove ? rand(10, H * 0.72) : rand(0, H * 0.5);
+        const rx = rand(20, 74);
+        const ry = rand(12, 44);
+        canopyLayers.push(`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${baseColor.rotate(195).desaturate(0.18).lighten(0.38).string()}" fill-opacity="${(canopyFromAbove ? rand(0.05, 0.16) : rand(0.05, 0.12)).toFixed(2)}"/>`);
+      }
+
+      const depthLayers = 4 + Math.floor(rand(0, 4));
+      const trunkBaseColor = baseColor.rotate(74).desaturate(0.22).darken(0.62).string();
+
+      const pickBiome = (depth) => {
+        const p = Math.max(0.05, pineWeight * (1.25 - depth * 0.45));
+        const b = Math.max(0.05, birchWeight * (0.75 + depth * 0.7));
+        const j = Math.max(0.05, jungleWeight * (0.85 + depth * 0.55));
+        const total = p + b + j;
+        const roll = rand(0, total);
+        if (roll < p) return 'pine';
+        if (roll < p + b) return 'birch';
+        return 'jungle';
+      };
+
+      for (let layer = 0; layer < depthLayers; layer++) {
+        const depth = (layer + 1) / depthLayers;
+        const opacity = 0.12 + depth * 0.78;
+        const minStep = lerp(24, 10, depth);
+        const maxStep = lerp(44, 18, depth);
+        let x = rand(-36, -8);
+        while (x < W + 32) {
+          x += rand(minStep, maxStep);
+          const yBase = canopyFromAbove
+            ? rand(H * 0.6, H + 8)
+            : clamp(groundY(x) + rand(-6, 8) - lerp(34, 4, depth), H * 0.36, H + 6);
+          const biome = pickBiome(depth);
+          if (biome === 'pine') {
+            const hTree = rand(26, 56) + depth * rand(30, 100);
+            const tiers = 2 + Math.floor(rand(0, 3));
+            const trunkW = rand(0.8, 2.2) + depth * 1.2;
+            const treeColor = baseColor.rotate(rand(84, 112)).saturate(rand(0.04, 0.2)).darken(lerp(0.42, 0.08, depth)).string();
+            let pine = '';
+            for (let t = 0; t < tiers; t++) {
+              const r = (t + 1) / tiers;
+              const tw = (hTree * rand(0.18, 0.33)) * (1 - r * rand(0.26, 0.4));
+              const ty = yBase - hTree * r;
+              const sway = rand(-4, 4);
+              pine += `<path d="M ${(x - tw + sway).toFixed(1)} ${yBase.toFixed(1)} L ${(x + sway).toFixed(1)} ${ty.toFixed(1)} L ${(x + tw + sway).toFixed(1)} ${yBase.toFixed(1)} Z" fill="${treeColor}"/>`;
+            }
+            pine += `<rect x="${(x - trunkW / 2).toFixed(1)}" y="${yBase.toFixed(1)}" width="${trunkW.toFixed(1)}" height="${rand(6, 18).toFixed(1)}" fill="${trunkBaseColor}"/>`;
+            forestLayers.push(`<g opacity="${opacity.toFixed(2)}">${pine}</g>`);
+          } else if (biome === 'birch') {
+            const hTree = rand(70, 168) * (0.6 + depth * 0.7);
+            const trunkW = rand(3.5, 8.5) * (0.7 + depth * 0.35);
+            const lean = rand(-8, 8);
+            const xTop = x + lean;
+            const yTop = yBase - hTree;
+            const bark = baseColor.rotate(200).desaturate(0.62).lighten(rand(1.05, 1.34)).string();
+            let birch = `<path d="M ${(x - trunkW / 2).toFixed(1)} ${yBase.toFixed(1)} L ${(xTop - trunkW * 0.45).toFixed(1)} ${yTop.toFixed(1)} L ${(xTop + trunkW * 0.45).toFixed(1)} ${yTop.toFixed(1)} L ${(x + trunkW / 2).toFixed(1)} ${yBase.toFixed(1)} Z" fill="${bark}"/>`;
+            const marks = 5 + Math.floor(rand(0, 8));
+            for (let m = 0; m < marks; m++) {
+              const my = lerp(yTop + 8, yBase - 10, rand());
+              const mw = rand(1.4, Math.max(2, trunkW * 0.9));
+              const mh = rand(0.8, 2.3);
+              birch += `<ellipse cx="${lerp(xTop, x, (my - yTop) / Math.max(1, hTree)).toFixed(1)}" cy="${my.toFixed(1)}" rx="${mw.toFixed(1)}" ry="${mh.toFixed(1)}" fill="${baseColor.rotate(148).desaturate(0.12).darken(0.62).string()}" fill-opacity="${rand(0.32, 0.7).toFixed(2)}"/>`;
+            }
+            forestLayers.push(`<g opacity="${opacity.toFixed(2)}">${birch}</g>`);
+          } else {
+            const hTree = rand(42, 116) * (0.62 + depth * 0.65);
+            const trunkW = rand(5, 16) * (0.72 + depth * 0.35);
+            const yTop = yBase - hTree;
+            const trunk = baseColor.rotate(rand(72, 96)).desaturate(0.1).darken(lerp(0.55, 0.2, depth)).string();
+            let jungle = `<path d="M ${(x - trunkW / 2).toFixed(1)} ${yBase.toFixed(1)} L ${(x - trunkW * 0.22).toFixed(1)} ${yTop.toFixed(1)} L ${(x + trunkW * 0.22).toFixed(1)} ${yTop.toFixed(1)} L ${(x + trunkW / 2).toFixed(1)} ${yBase.toFixed(1)} Z" fill="${trunk}"/>`;
+            const leaves = 2 + Math.floor(rand(0, 5));
+            for (let l = 0; l < leaves; l++) {
+              const lx = x + rand(-trunkW * 2.2, trunkW * 2.2);
+              const ly = yTop + rand(-16, 22);
+              const rx = rand(8, 24) * (0.75 + depth * 0.45);
+              const ry = rx * rand(0.45, 0.9);
+              const ang = rand(-50, 50);
+              const leaf = baseColor.rotate(rand(68, 128)).saturate(rand(0.14, 0.32)).lighten(rand(0.04, 0.22)).string();
+              jungle += `<ellipse cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" transform="rotate(${ang.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})" fill="${leaf}" fill-opacity="${rand(0.26, 0.72).toFixed(2)}"/>`;
+            }
+            if (chance(0.32)) {
+              const vx = x + rand(-trunkW * 1.2, trunkW * 1.2);
+              jungle += `<path d="M ${vx.toFixed(1)} ${yTop.toFixed(1)} C ${(vx + rand(-12, 12)).toFixed(1)} ${(yTop + hTree * 0.35).toFixed(1)} ${(vx + rand(-16, 16)).toFixed(1)} ${(yTop + hTree * 0.65).toFixed(1)} ${(vx + rand(-8, 8)).toFixed(1)} ${yBase.toFixed(1)}" fill="none" stroke="${baseColor.rotate(80).darken(0.58).string()}" stroke-width="${rand(0.8, 2.1).toFixed(2)}" stroke-opacity="${rand(0.3, 0.6).toFixed(2)}"/>`;
+            }
+            forestLayers.push(`<g opacity="${opacity.toFixed(2)}">${jungle}</g>`);
+          }
+
+          if (chance(0.5 + depth * 0.2)) {
+            const shrubCount = 1 + Math.floor(rand(0, 3));
+            for (let s = 0; s < shrubCount; s++) {
+              const sx = x + rand(-18, 18);
+              const sy = yBase + rand(-2, 8);
+              const sr = rand(6, 18) * (0.6 + depth * 0.6);
+              const shrub = baseColor.rotate(rand(74, 118)).saturate(rand(0.05, 0.2)).darken(lerp(0.42, 0.12, depth)).string();
+              undergrowthLayers.push(`<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${sr.toFixed(1)}" fill="${shrub}" fill-opacity="${(0.18 + depth * 0.5).toFixed(2)}"/>`);
+            }
+          }
+        }
+      }
+
+      if (hasFireflies) {
+        const flyColor = baseColor.rotate(36).saturate(0.56).lighten(1.25).string();
+        const clusterCount = 2 + Math.floor(rand(0, 4));
+        for (let c = 0; c < clusterCount; c++) {
+          const cx = rand(40, W - 40);
+          const cy = rand(H * 0.2, H * 0.82);
+          const flies = 8 + Math.floor(rand(0, 22));
+          for (let i = 0; i < flies; i++) {
+            const ang = rand(0, Math.PI * 2);
+            const dist = Math.pow(rand(), 0.56) * rand(10, 72);
+            const x = clamp(cx + Math.cos(ang) * dist, 4, W - 4);
+            const y = clamp(cy + Math.sin(ang) * dist, 4, H - 4);
+            const r = rand(0.8, 2.6);
+            const op = rand(0.28, 0.92);
+            fireflyLayers.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${flyColor}" fill-opacity="${op.toFixed(2)}" filter="url(#${glowFilterId})"/>`);
+            if (chance(0.2)) {
+              fireflyLayers.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r * rand(2.2, 4.4)).toFixed(2)}" fill="${flyColor}" fill-opacity="${(op * 0.12).toFixed(2)}"/>`);
+            }
+          }
+        }
+        const ambientFlies = 8 + Math.floor(rand(0, 18));
+        for (let i = 0; i < ambientFlies; i++) {
+          const x = rand(0, W);
+          const y = rand(H * 0.14, H * 0.92);
+          fireflyLayers.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${rand(0.6, 1.6).toFixed(2)}" fill="${flyColor}" fill-opacity="${rand(0.18, 0.55).toFixed(2)}"/>`);
+        }
+      }
+
+      if (hasFog) {
+        const bands = 4 + Math.floor(rand(0, 5));
+        for (let b = 0; b < bands; b++) {
+          const yBase = rand(H * 0.22, H * 0.92);
+          const amp = rand(8, 26) * (0.8 + b * 0.16);
+          const op = rand(0.05, 0.14) + b * 0.025;
+          const freq = rand(0.01, 0.03);
+          let d = `M -20 ${(yBase + amp).toFixed(1)} `;
+          for (let x = -20; x <= W + 20; x += 16) {
+            const y = yBase
+              + (fbm((x + b * 83) * freq, 4) - 0.5) * amp * 1.5
+              + Math.sin((x + b * 41) * freq * 0.8) * amp * 0.35;
+            d += `L ${x} ${y.toFixed(1)} `;
+          }
+          d += `L ${W + 20} ${H + 20} L -20 ${H + 20} Z`;
+          fogLayers.push(`<path d="${d}" fill="${fogColor}" fill-opacity="${clamp(op, 0, 0.45).toFixed(2)}"/>`);
+        }
+        fogLayers.push(`<rect x="0" y="${(H * rand(0.28, 0.42)).toFixed(1)}" width="${W}" height="${(H * rand(0.58, 0.72)).toFixed(1)}" fill="url(#${fogGradId})"/>`);
+      }
+
+      return `<svg width="100%" height="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    ${defs.join('\n    ')}
+  </defs>
+  ${bgLayers.join('\n  ')}
+  ${ridgeLayers.join('\n  ')}
+  ${canopyLayers.join('\n  ')}
+  ${forestLayers.join('\n  ')}
+  ${undergrowthLayers.join('\n  ')}
+  ${fogLayers.join('\n  ')}
+  ${fireflyLayers.join('\n  ')}
+</svg>`;
+    }
+
+    function generateDesertSvg(genre, imagePrompt) {
+      const themeKey = (GENRE_CFG[genre] || {}).key || 'samurai';
+      const seed = _seedStr(`desert:${imagePrompt || genre || 'desert'}`);
+      const baseColor = new Col(DESERT_BASE_COLORS[themeKey] || '#9f7842');
+      const rng = _mkRng(seed);
+
+      const W = 600, H = 300;
+      const sid = seed.toString(36);
+      const skyGradId = `deSky${sid}`;
+      const sunGradId = `deSun${sid}`;
+      const mirageGradId = `deMirage${sid}`;
+      const starGlowId = `deStarGlow${sid}`;
+
+      const rand = (a = 0, b = 1) => a + rng() * (b - a);
+      const chance = (p) => rng() < p;
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+      function hashInt(n) {
+        let x = Math.imul((n | 0) ^ seed, 2246822519);
+        x ^= x >>> 13;
+        x = Math.imul(x, 3266489917);
+        x ^= x >>> 16;
+        return (x >>> 0) / 4294967295;
+      }
+      function noise1D(x) {
+        const i = Math.floor(x);
+        const f = x - i;
+        const u = f * f * (3 - 2 * f);
+        return hashInt(i) * (1 - u) + hashInt(i + 1) * u;
+      }
+      function fbm(x, octaves = 4) {
+        let sum = 0;
+        let amp = 0.58;
+        let freq = 1;
+        let norm = 0;
+        for (let o = 0; o < octaves; o++) {
+          sum += noise1D(x * freq) * amp;
+          norm += amp;
+          amp *= 0.5;
+          freq *= 2.07;
+        }
+        return norm > 0 ? sum / norm : 0;
+      }
+
+      const nightMode = chance(0.42);
+      const lightFromLeft = chance(0.55);
+      const duneLayerCount = 4 + Math.floor(rand(0, 3));
+      const horizonY = rand(118, 156);
+      const sunX = rand(W * 0.18, W * 0.82);
+      const sunY = rand(H * 0.12, H * 0.36);
+      const sunR = nightMode ? rand(12, 22) : rand(20, 34);
+
+      const defs = [];
+      const stars = [];
+      const skyFx = [];
+      const mirage = [];
+      const duneBack = [];
+      const duneFront = [];
+      const rippleLines = [];
+      const cactus = [];
+      const caravan = [];
+      const dust = [];
+      const duneFns = [];
+
+      const skyTop = nightMode
+        ? baseColor.rotate(220).desaturate(0.15).darken(0.7).string()
+        : baseColor.rotate(-10).saturate(0.24).darken(0.17).string();
+      const skyMid = nightMode
+        ? baseColor.rotate(195).desaturate(0.12).darken(0.58).string()
+        : baseColor.rotate(14).saturate(0.36).lighten(0.46).string();
+      const skyLow = nightMode
+        ? baseColor.rotate(168).desaturate(0.1).darken(0.42).string()
+        : baseColor.rotate(34).saturate(0.42).lighten(0.82).string();
+      const sunInner = nightMode
+        ? baseColor.rotate(175).desaturate(0.68).lighten(1.55).string()
+        : baseColor.rotate(58).saturate(0.66).lighten(1.2).string();
+      const sunOuter = nightMode
+        ? baseColor.rotate(200).desaturate(0.45).lighten(0.42).string()
+        : baseColor.rotate(34).saturate(0.5).lighten(0.62).string();
+      const cactusBase = baseColor.rotate(92).desaturate(0.2).darken(nightMode ? 0.56 : 0.46).string();
+      const caravanColor = baseColor.rotate(70).desaturate(0.26).darken(nightMode ? 0.48 : 0.38).string();
+      const mirageColor = baseColor.rotate(46).desaturate(0.15).lighten(nightMode ? 0.18 : 1.05).string();
+
+      defs.push(`<linearGradient id="${skyGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${skyTop}"/>
+      <stop offset="58%" stop-color="${skyMid}"/>
+      <stop offset="100%" stop-color="${skyLow}"/>
+    </linearGradient>`);
+      defs.push(`<radialGradient id="${sunGradId}" cx="50%" cy="50%" r="62%">
+      <stop offset="0%" stop-color="${sunInner}" stop-opacity="${nightMode ? '0.92' : '0.95'}"/>
+      <stop offset="100%" stop-color="${sunOuter}" stop-opacity="0"/>
+    </radialGradient>`);
+      defs.push(`<linearGradient id="${mirageGradId}" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${mirageColor}" stop-opacity="0"/>
+      <stop offset="50%" stop-color="${mirageColor}" stop-opacity="${nightMode ? '0.18' : '0.42'}"/>
+      <stop offset="100%" stop-color="${mirageColor}" stop-opacity="0"/>
+    </linearGradient>`);
+      defs.push(`<filter id="${starGlowId}" x="-50%" y="-50%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="${nightMode ? '1.6' : '0.9'}" result="soft"/>
+      <feMerge>
+        <feMergeNode in="soft"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>`);
+
+      if (nightMode) {
+        const starCount = 90 + Math.floor(rand(0, 90));
+        const starColor = baseColor.rotate(175).desaturate(0.42).lighten(1.65).string();
+        for (let i = 0; i < starCount; i++) {
+          const x = rand(0, W);
+          const y = rand(0, H * 0.68);
+          const r = chance(0.83) ? rand(0.28, 1.2) : rand(1.0, 1.9);
+          const op = rand(0.24, 0.9);
+          stars.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${starColor}" fill-opacity="${op.toFixed(2)}" filter="url(#${starGlowId})"/>`);
+          if (chance(0.08)) {
+            const ray = r * rand(2.0, 3.7);
+            stars.push(`<g stroke="${starColor}" stroke-opacity="${Math.min(0.9, op + 0.12).toFixed(2)}" stroke-linecap="round">
+        <line x1="${(x - ray).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + ray).toFixed(1)}" y2="${y.toFixed(1)}" stroke-width="0.45"/>
+        <line x1="${x.toFixed(1)}" y1="${(y - ray).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + ray).toFixed(1)}" stroke-width="0.45"/>
+      </g>`);
+          }
+        }
+      }
+
+      skyFx.push(`<circle cx="${sunX.toFixed(1)}" cy="${sunY.toFixed(1)}" r="${sunR.toFixed(1)}" fill="url(#${sunGradId})" fill-opacity="${nightMode ? '0.72' : '0.96'}"/>`);
+
+      for (let i = 0; i < duneLayerCount; i++) {
+        const depth = (i + 1) / duneLayerCount;
+        const baseY = lerp(horizonY + 8, H - 36, depth) + rand(-7, 8);
+        const amp = lerp(9, 34, depth) + rand(-2, 6);
+        const freq = rand(0.008, 0.018);
+        const phase = rand(0, 1200);
+        const noiseScale = rand(0.006, 0.013);
+
+        const duneY = (x) => {
+          const n = (fbm((x + phase) * noiseScale, 4) - 0.5) * 2;
+          return baseY
+            + Math.sin((x + phase) * freq) * amp
+            + Math.sin((x + phase) * freq * 0.43) * amp * 0.4
+            + n * amp * 0.68;
+        };
+        duneFns.push(duneY);
+
+        const duneGradId = `deDune${sid}${i}`;
+        const duneTop = nightMode
+          ? baseColor.rotate(28 + depth * 7).desaturate(0.16).darken(0.34 + depth * 0.18).string()
+          : baseColor.rotate(26 + depth * 8).saturate(0.12 + (1 - depth) * 0.2).lighten(0.35 - depth * 0.14).string();
+        const duneBottom = nightMode
+          ? baseColor.rotate(10 + depth * 6).desaturate(0.2).darken(0.52 + depth * 0.2).string()
+          : baseColor.rotate(8 + depth * 4).desaturate(0.1).darken(0.22 + depth * 0.34).string();
+        defs.push(`<linearGradient id="${duneGradId}" x1="${lightFromLeft ? '8%' : '92%'}" y1="0%" x2="${lightFromLeft ? '92%' : '8%'}" y2="100%">
+      <stop offset="0%" stop-color="${duneTop}"/>
+      <stop offset="100%" stop-color="${duneBottom}"/>
+    </linearGradient>`);
+
+        let dunePath = `M 0 ${duneY(0).toFixed(1)} `;
+        let ridgePath = `M 0 ${duneY(0).toFixed(1)} `;
+        for (let x = 0; x <= W; x += 12) {
+          const y = duneY(x);
+          dunePath += `L ${x} ${y.toFixed(1)} `;
+          ridgePath += `L ${x} ${y.toFixed(1)} `;
+        }
+        dunePath += `L ${W} ${H} L 0 ${H} Z`;
+
+        const duneSvg = `<path d="${dunePath}" fill="url(#${duneGradId})" fill-opacity="${(0.84 + depth * 0.14).toFixed(2)}"/>`;
+        const ridgeSvg = `<path d="${ridgePath}" fill="none" stroke="${duneTop}" stroke-opacity="${(nightMode ? 0.07 : 0.22 + depth * 0.08).toFixed(2)}" stroke-width="${(0.75 + depth * 1.1).toFixed(2)}"/>`;
+        if (i < duneLayerCount - 1) {
+          duneBack.push(duneSvg);
+          duneBack.push(ridgeSvg);
+        } else {
+          duneFront.push(duneSvg);
+          duneFront.push(ridgeSvg);
+        }
+
+        if (i >= duneLayerCount - 2) {
+          const rippleCount = 10 + Math.floor(rand(0, 10));
+          for (let r = 0; r < rippleCount; r++) {
+            const rx0 = rand(0, W - 80);
+            const rw = rand(40, 140);
+            const ry = duneY(rx0 + rw * 0.5) + rand(8, 30);
+            rippleLines.push(`<path d="M ${rx0.toFixed(1)} ${ry.toFixed(1)} Q ${(rx0 + rw * 0.5).toFixed(1)} ${(ry + rand(-3, 3)).toFixed(1)} ${(rx0 + rw).toFixed(1)} ${ry.toFixed(1)}" fill="none" stroke="${duneTop}" stroke-opacity="${(nightMode ? 0.05 : 0.18).toFixed(2)}" stroke-width="${rand(0.5, 1.3).toFixed(2)}"/>`);
+          }
+        }
+      }
+
+      const routeFn = duneFns[Math.max(0, duneFns.length - 2)] || ((x) => H - 70);
+      const frontFn = duneFns[duneFns.length - 1] || ((x) => H - 40);
+
+      function camelSilhouette(cx, cy, scale, dir, op = 0.95) {
+        const bodyLen = 22 * scale;
+        const bodyH = 5.4 * scale;
+        const humpR1 = 4.1 * scale;
+        const humpR2 = 3.7 * scale;
+        const legW = 1.7 * scale;
+        const legH = 6.6 * scale;
+        const headR = 2.3 * scale;
+        const dx = (v) => cx + v * dir;
+        return `<g fill="${caravanColor}" fill-opacity="${op.toFixed(2)}">
+      <ellipse cx="${dx(0).toFixed(1)}" cy="${(cy - bodyH * 0.25).toFixed(1)}" rx="${(bodyLen * 0.52).toFixed(1)}" ry="${bodyH.toFixed(1)}"/>
+      <circle cx="${dx(-bodyLen * 0.11).toFixed(1)}" cy="${(cy - bodyH - humpR1 * 0.65).toFixed(1)}" r="${humpR1.toFixed(1)}"/>
+      <circle cx="${dx(bodyLen * 0.14).toFixed(1)}" cy="${(cy - bodyH - humpR2 * 0.7).toFixed(1)}" r="${humpR2.toFixed(1)}"/>
+      <path d="M ${dx(bodyLen * 0.26).toFixed(1)} ${(cy - bodyH * 0.9).toFixed(1)} L ${dx(bodyLen * 0.46).toFixed(1)} ${(cy - bodyH * 2.2).toFixed(1)} L ${dx(bodyLen * 0.56).toFixed(1)} ${(cy - bodyH * 1.8).toFixed(1)} L ${dx(bodyLen * 0.34).toFixed(1)} ${(cy - bodyH * 0.65).toFixed(1)} Z"/>
+      <circle cx="${dx(bodyLen * 0.6).toFixed(1)}" cy="${(cy - bodyH * 1.95).toFixed(1)}" r="${headR.toFixed(1)}"/>
+      <rect x="${(dx(-bodyLen * 0.42) - legW * 0.5).toFixed(1)}" y="${(cy - 0.1).toFixed(1)}" width="${legW.toFixed(2)}" height="${legH.toFixed(1)}" rx="${(legW * 0.4).toFixed(2)}"/>
+      <rect x="${(dx(-bodyLen * 0.2) - legW * 0.5).toFixed(1)}" y="${(cy + 0.3).toFixed(1)}" width="${legW.toFixed(2)}" height="${(legH * 0.95).toFixed(1)}" rx="${(legW * 0.4).toFixed(2)}"/>
+      <rect x="${(dx(bodyLen * 0.1) - legW * 0.5).toFixed(1)}" y="${(cy - 0.1).toFixed(1)}" width="${legW.toFixed(2)}" height="${(legH * 0.96).toFixed(1)}" rx="${(legW * 0.4).toFixed(2)}"/>
+      <rect x="${(dx(bodyLen * 0.34) - legW * 0.5).toFixed(1)}" y="${(cy + 0.3).toFixed(1)}" width="${legW.toFixed(2)}" height="${(legH * 0.92).toFixed(1)}" rx="${(legW * 0.4).toFixed(2)}"/>
+    </g>`;
+      }
+
+      const caravanCount = 3 + Math.floor(rand(0, 4));
+      const travelLeftToRight = chance(0.5);
+      const dir = travelLeftToRight ? 1 : -1;
+      const span = rand(170, 280);
+      const startX = travelLeftToRight ? rand(30, W - span - 30) : rand(span + 30, W - 30);
+      for (let i = 0; i < caravanCount; i++) {
+        const t = caravanCount > 1 ? i / (caravanCount - 1) : 0;
+        const x = travelLeftToRight ? (startX + t * span) : (startX - t * span);
+        const y = routeFn(clamp(x, 0, W)) - rand(2, 9);
+        const scale = lerp(0.54, 0.95, t) * rand(0.92, 1.1);
+        caravan.push(camelSilhouette(x, y, scale, dir, nightMode ? 0.84 : 0.94));
+        if (chance(0.65)) {
+          const cloudW = rand(6, 18) * scale;
+          const cloudH = rand(2.2, 5.2) * scale;
+          dust.push(`<ellipse cx="${(x - dir * rand(12, 24)).toFixed(1)}" cy="${(y + rand(4, 10)).toFixed(1)}" rx="${cloudW.toFixed(1)}" ry="${cloudH.toFixed(1)}" fill="${baseColor.rotate(28).desaturate(0.2).lighten(nightMode ? 0.05 : 0.45).string()}" fill-opacity="${(nightMode ? rand(0.06, 0.16) : rand(0.12, 0.28)).toFixed(2)}"/>`);
+        }
+      }
+
+      if (caravan.length > 0 && chance(0.6)) {
+        const leadX = travelLeftToRight ? (startX - rand(14, 22)) : (startX + rand(14, 22));
+        const leadY = routeFn(clamp(leadX, 0, W)) - rand(2, 6);
+        const leadS = rand(0.42, 0.58);
+        caravan.push(`<g fill="${caravanColor}" fill-opacity="${nightMode ? '0.82' : '0.92'}">
+      <circle cx="${leadX.toFixed(1)}" cy="${(leadY - 6 * leadS).toFixed(1)}" r="${(1.6 * leadS).toFixed(2)}"/>
+      <rect x="${(leadX - 0.8 * leadS).toFixed(1)}" y="${(leadY - 5.2 * leadS).toFixed(1)}" width="${(1.6 * leadS).toFixed(2)}" height="${(6.2 * leadS).toFixed(2)}" rx="${(0.4 * leadS).toFixed(2)}"/>
+      <rect x="${(leadX - 1.6 * leadS).toFixed(1)}" y="${leadY.toFixed(1)}" width="${(1.1 * leadS).toFixed(2)}" height="${(4.2 * leadS).toFixed(2)}" rx="${(0.35 * leadS).toFixed(2)}"/>
+      <rect x="${(leadX + 0.5 * leadS).toFixed(1)}" y="${leadY.toFixed(1)}" width="${(1.1 * leadS).toFixed(2)}" height="${(4.2 * leadS).toFixed(2)}" rx="${(0.35 * leadS).toFixed(2)}"/>
+    </g>`);
+      }
+
+      const cactusCount = 8 + Math.floor(rand(0, 12));
+      const cactusItems = [];
+      for (let i = 0; i < cactusCount; i++) {
+        const depth = rand(0.28, 1);
+        const x = rand(8, W - 8);
+        const baseFn = depth < 0.5 ? routeFn : frontFn;
+        const y = baseFn(x) + lerp(-18, 8, depth);
+        if (y < horizonY - 35 || y > H + 16) continue;
+        const hC = lerp(16, 66, depth) * rand(0.82, 1.2);
+        const wC = hC * rand(0.1, 0.2);
+        const armCount = 1 + (chance(0.45) ? 1 : 0);
+        const col = baseColor.rotate(90 + rand(-8, 9)).desaturate(0.2).darken(lerp(nightMode ? 0.68 : 0.56, nightMode ? 0.42 : 0.3, depth)).string();
+        let shape = `<rect x="${(x - wC / 2).toFixed(1)}" y="${(y - hC).toFixed(1)}" width="${wC.toFixed(1)}" height="${hC.toFixed(1)}" rx="${(wC * 0.38).toFixed(1)}"/>`;
+        for (let a = 0; a < armCount; a++) {
+          const side = a === 0 ? (chance(0.5) ? -1 : 1) : (chance(0.5) ? -1 : 1);
+          const armY = y - hC * rand(0.34, 0.72);
+          const armH = hC * rand(0.22, 0.42);
+          const armW = wC * rand(0.56, 0.94);
+          const armX = x + side * (wC * 0.52 - armW * 0.5);
+          shape += `<rect x="${(armX - armW / 2).toFixed(1)}" y="${(armY - armH).toFixed(1)}" width="${armW.toFixed(1)}" height="${armH.toFixed(1)}" rx="${(armW * 0.42).toFixed(1)}"/>`;
+          shape += `<rect x="${(armX).toFixed(1)}" y="${(armY - armW * 0.55).toFixed(1)}" width="${(side * armW * 1.2).toFixed(1)}" height="${(armW * 0.8).toFixed(1)}" rx="${(armW * 0.4).toFixed(1)}"/>`;
+        }
+        cactusItems.push({
+          y,
+          svg: `<g fill="${col}" fill-opacity="${lerp(0.45, 0.98, depth).toFixed(2)}">${shape}</g>`,
+        });
+      }
+      cactusItems.sort((a, b) => a.y - b.y);
+      cactus.push(...cactusItems.map(i => i.svg));
+
+      const mirageCount = nightMode ? (2 + Math.floor(rand(0, 4))) : (5 + Math.floor(rand(0, 8)));
+      for (let i = 0; i < mirageCount; i++) {
+        const yBase = horizonY + rand(-6, 28) + i * rand(2.8, 7.2);
+        const amp = rand(1.2, 3.9) * (nightMode ? 0.55 : 1);
+        const freq = rand(0.015, 0.034);
+        const phase = rand(0, 520);
+        let d = `M -20 ${yBase.toFixed(1)} `;
+        for (let x = -20; x <= W + 20; x += 16) {
+          const y = yBase
+            + Math.sin((x + phase) * freq) * amp
+            + (fbm((x + i * 47) * 0.012, 3) - 0.5) * amp * 1.1;
+          d += `L ${x} ${y.toFixed(1)} `;
+        }
+        mirage.push(`<path d="${d}" fill="none" stroke="url(#${mirageGradId})" stroke-width="${rand(0.8, 2.1).toFixed(2)}" stroke-linecap="round" stroke-opacity="${(nightMode ? rand(0.08, 0.2) : rand(0.18, 0.48)).toFixed(2)}"/>`);
+      }
+
+      return `<svg width="100%" height="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    ${defs.join('\n    ')}
+  </defs>
+  <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${skyGradId})"/>
+  ${stars.join('\n  ')}
+  ${skyFx.join('\n  ')}
+  ${mirage.join('\n  ')}
+  ${duneBack.join('\n  ')}
+  ${caravan.join('\n  ')}
+  ${dust.join('\n  ')}
+  ${duneFront.join('\n  ')}
+  ${rippleLines.join('\n  ')}
+  ${cactus.join('\n  ')}
+</svg>`;
+    }
+
     function generateSvg(genre, imagePrompt) {
       const rng = _mkRng(_seedStr(`scene:${imagePrompt || genre || 'svg'}`));
       const pick = rng();
-      if (pick < 0.34) return generateStarrySkySvg(genre, imagePrompt);
-      if (pick < 0.67) return generateTerrainSvg(genre, imagePrompt);
-      return generateOceanSvg(genre, imagePrompt);
+      if (pick < 0.2) return generateStarrySkySvg(genre, imagePrompt);
+      if (pick < 0.4) return generateTerrainSvg(genre, imagePrompt);
+      if (pick < 0.6) return generateOceanSvg(genre, imagePrompt);
+      if (pick < 0.8) return generateForestSvg(genre, imagePrompt);
+      return generateDesertSvg(genre, imagePrompt);
     }
     let timerInterval = null;
     let verbInterval  = null;
