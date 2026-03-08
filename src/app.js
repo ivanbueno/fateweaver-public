@@ -2857,7 +2857,7 @@
     // Fetch + decode one music clip from Lambda
     async function fetchMusicClip() {
       const result = await callLambda(
-        { action: 'generateMusicx', genre: S.genre, era: S.era, archetype: S.archetype },
+        { action: 'generateMusic', genre: S.genre, era: S.era, archetype: S.archetype },
         60000 // 60 s — Lyria buffers 18 s of audio
       );
       if (!result.success || !result.audio) throw new Error(result.error || 'No audio');
