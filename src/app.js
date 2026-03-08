@@ -2367,9 +2367,9 @@
 
     /* ─── INIT ─────────────────────────────────────────────── */
     function init() {
-      buildGrid('genre-grid',     GENRES,     'genre', 14);
+      buildGrid('genre-grid',     GENRES,     'genre', 17);
       buildGrid('era-grid',       ERAS,       'era');
-      buildGrid('archetype-grid', ARCHETYPES, 'archetype', 14);
+      buildGrid('archetype-grid', ARCHETYPES, 'archetype', 17);
 
       // Accordion header click — lets the user re-open any completed section to change selection
       ['genre-section', 'era-section', 'archetype-section'].forEach(sectionId => {
