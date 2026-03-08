@@ -658,6 +658,8 @@
     let endingShareResetTid = null;
     const STORY_KEY_PREFIX = 'visualnovel_story_';
     const PROGRESS_KEY_PREFIX = 'visualnovel_progress_';
+    const COMPLETED_STORY_KEY_PREFIX = 'visualnovel_completed_story_';
+    const COMPLETED_STORY_LIMIT = 24;
 
     /* ─── STORAGE HELPERS ──────────────────────────────────── */
     const slug = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -670,16 +672,72 @@
       try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
     }
 
-    function saveStory(storyObj) {
+    function storyPagesForStorage(storyObj) {
       // Strip inline image data before saving (images are in-memory only, not persisted)
       const pages = {};
       for (const [id, page] of Object.entries(storyObj.pages || {})) {
         const { image, ...rest } = page;
         pages[id] = rest;
       }
+      return pages;
+    }
+
+    function saveStory(storyObj) {
+      if (!storyObj?.pages) return;
+      const pages = storyPagesForStorage(storyObj);
       lsSet(storyKey(), { meta: { genre: S.genre, era: S.era, archetype: S.archetype, generatedAt: Date.now() }, pages });
     }
     function loadStoredStory() { return lsGet(storyKey()); }
+
+    function trimCompletedStories() {
+      const archive = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key || !key.startsWith(COMPLETED_STORY_KEY_PREFIX)) continue;
+          const stored = lsGet(key);
+          if (!stored?.pages) continue;
+          const meta = stored.meta || {};
+          archive.push({
+            key,
+            recency: Number(meta.completedAt) || Number(meta.generatedAt) || 0,
+          });
+        }
+      } catch {
+        return;
+      }
+
+      archive
+        .sort((a, b) => b.recency - a.recency)
+        .slice(COMPLETED_STORY_LIMIT)
+        .forEach(entry => {
+          try { localStorage.removeItem(entry.key); } catch {}
+        });
+    }
+
+    function saveCompletedStory(endingType) {
+      if (!S.story?.pages || !S.genre || !S.era || !S.archetype) return;
+
+      const now = Date.now();
+      const active = loadStoredStory();
+      const generatedAt = Number(active?.meta?.generatedAt) || now;
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const key = `${COMPLETED_STORY_KEY_PREFIX}${now}_${suffix}`;
+
+      lsSet(key, {
+        meta: {
+          genre: S.genre,
+          era: S.era,
+          archetype: S.archetype,
+          generatedAt,
+          completedAt: now,
+          endingType: gaSafe(endingType || 'good', 16),
+        },
+        pages: storyPagesForStorage(S.story),
+      });
+
+      trimCompletedStories();
+    }
 
     function saveProgress() {
       if (!S.storyRunStartedAt) S.storyRunStartedAt = Date.now();
@@ -710,7 +768,10 @@
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (!key || !key.startsWith(STORY_KEY_PREFIX)) continue;
+          if (!key) continue;
+          const isActive = key.startsWith(STORY_KEY_PREFIX);
+          const isCompleted = key.startsWith(COMPLETED_STORY_KEY_PREFIX);
+          if (!isActive && !isCompleted) continue;
           const stored = lsGet(key);
           if (!stored?.pages) continue;
 
@@ -720,43 +781,72 @@
           const archetype = String(meta.archetype || 'Unknown Archetype');
           stories.push({
             key,
-            progressKey: key.replace(STORY_KEY_PREFIX, PROGRESS_KEY_PREFIX),
+            kind: isActive ? 'active' : 'completed',
+            progressKey: `${PROGRESS_KEY_PREFIX}${slug(genre)}_${slug(era)}_${slug(archetype)}`,
             story: stored,
             genre,
             era,
             archetype,
             generatedAt: Number(meta.generatedAt) || 0,
+            completedAt: Number(meta.completedAt) || 0,
           });
         }
       } catch {
         return [];
       }
 
-      stories.sort((a, b) => b.generatedAt - a.generatedAt);
+      stories.sort((a, b) => Math.max(b.completedAt, b.generatedAt) - Math.max(a.completedAt, a.generatedAt));
       return stories;
     }
 
-    function replaySavedStory(entry) {
+    async function replaySavedStory(entry) {
       if (!entry?.story?.pages) return;
+
+      const pages = entry.story.pages || {};
+      let targetPage = 'page_1';
+      let targetChoices = [];
+      let targetStartedAt = Date.now();
+      let clearProgress = true;
+
+      if (entry.kind === 'active') {
+        const prog = lsGet(entry.progressKey);
+        const hasChoices = Array.isArray(prog?.choicesMade) && prog.choicesMade.length > 0;
+        const hasCheckpoint = Boolean(prog?.currentPage && prog.currentPage !== 'page_1');
+        const canResume = hasChoices || hasCheckpoint;
+
+        if (canResume) {
+          const shouldResume = await promptResumeDecision(entry.story, prog);
+          if (shouldResume) {
+            const candidatePage = typeof prog?.currentPage === 'string' ? prog.currentPage : 'page_1';
+            targetPage = Object.prototype.hasOwnProperty.call(pages, candidatePage) ? candidatePage : 'page_1';
+            targetChoices = Array.isArray(prog?.choicesMade) ? prog.choicesMade : [];
+            targetStartedAt = Number(prog?.startedAt) || Date.now();
+            clearProgress = false;
+          }
+        }
+      }
 
       S.genre = entry.genre;
       S.era = entry.era;
       S.archetype = entry.archetype;
-      S.story = { pages: entry.story.pages };
-      S.currentPageId = 'page_1';
-      S.choicesMade = [];
+      S.story = { pages };
+      S.currentPageId = targetPage;
+      S.choicesMade = targetChoices;
       S.imageCache = {};
-      S.storyRunStartedAt = Date.now();
+      S.storyRunStartedAt = targetStartedAt;
 
-      localStorage.removeItem(entry.progressKey);
+      saveStory(S.story);
+      if (clearProgress) localStorage.removeItem(entry.progressKey);
 
       applyTheme(S.genre);
       showScreen('game');
-      renderPage('page_1');
+      renderPage(targetPage);
       if (!MUS.ready && !MUS.loading) startBackgroundMusic();
 
       trackEvent('setup_history_replayed', gaStoryParams({
         source: 'setup_history',
+        resumed: Number(!clearProgress),
+        page_id: gaSafe(targetPage, 24),
       }));
     }
 
@@ -787,7 +877,7 @@
         link.innerHTML = `<strong>${esc(title)}</strong><span>${esc(preview)}</span>`;
         link.addEventListener('click', evt => {
           evt.preventDefault();
-          replaySavedStory(entry);
+          void replaySavedStory(entry);
         });
         listEl.appendChild(link);
       });
@@ -2256,6 +2346,11 @@
         endingScreen.classList.add('is-revealed');
       }
 
+      saveCompletedStory(type);
+      localStorage.removeItem(storyKey());
+      localStorage.removeItem(progressKey());
+      renderSetupHistory();
+
       trackEvent('ending_viewed', gaStoryParams({
         ending_type: gaSafe(type, 16),
         total_choices: S.choicesMade.length,
@@ -2304,6 +2399,7 @@
 
     function playAgain() {
       // Keep the story and music, reset progress to page_1
+      if (S.story?.pages) saveStory(S.story);
       localStorage.removeItem(progressKey());
       S.currentPageId = 'page_1';
       S.choicesMade   = [];
