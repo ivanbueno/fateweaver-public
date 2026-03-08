@@ -17,12 +17,9 @@
   <div id="settings-overlay" class="settings-overlay hidden">
     <div class="settings-card">
       <div class="settings-header">
-        <h3>⚡ Lambda Configuration</h3>
+        <h3>Scene Settings</h3>
         <button class="btn-close" onclick="closeSettings()">✕</button>
       </div>
-      <p>Paste your AWS Lambda Function URL. All AI calls are proxied through this endpoint — the browser never calls Gemini directly.</p>
-      <input type="url" id="lambda-url-input" placeholder="https://xxxxxxxx.lambda-url.us-east-1.on.aws/">
-      <div class="settings-divider"></div>
       <p class="settings-sublabel">Scene images</p>
       <div class="settings-radio-group">
         <label class="settings-radio">
@@ -35,8 +32,7 @@
         </label>
       </div>
       <div class="settings-row">
-        <button class="btn-primary" onclick="saveLambdaUrl()" style="flex:1">Connect</button>
-        <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+        <button class="btn-secondary" onclick="closeSettings()">Close</button>
       </div>
     </div>
   </div>

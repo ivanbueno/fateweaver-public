@@ -4,7 +4,13 @@
     ══════════════════════════════════════════════════════════ */
 
     // ─── LAMBDA URL ──────────────────────────────────────────
-    const LAMBDA_PLACEHOLDER = 'YOUR_LAMBDA_URL_HERE';
+    function configuredLambdaUrl() {
+      const raw = window.APP_CONFIG?.lambdaUrl;
+      if (typeof raw !== 'string') return null;
+      const url = raw.trim();
+      return /^https?:\/\//i.test(url) ? url : null;
+    }
+
     // Configure this via APP_CONFIG.gaMeasurementId (or googleAnalyticsId).
     const GA_MEASUREMENT_ID = (() => {
       const fromConfig = window.APP_CONFIG?.gaMeasurementId || window.APP_CONFIG?.googleAnalyticsId || '';
@@ -570,7 +576,7 @@
 
       A.enabled = true;
       trackEvent('app_loaded', gaStoryParams({
-        lambda_configured: Number(Boolean(S.lambdaUrl && S.lambdaUrl !== LAMBDA_PLACEHOLDER)),
+        lambda_configured: Number(Boolean(S.lambdaUrl)),
       }));
     }
 
@@ -2955,7 +2961,7 @@
 
     /* ─── LAMBDA FETCH ─────────────────────────────────────── */
     async function callLambda(body, ms = 90000) {
-      if (!S.lambdaUrl || S.lambdaUrl === LAMBDA_PLACEHOLDER) throw new Error('Lambda URL not configured — click ⚙ to set it.');
+      if (!S.lambdaUrl) throw new Error('Lambda URL not configured. Set `window.APP_CONFIG.lambdaUrl` in `src/app-config.js`.');
 
       const ctrl = new AbortController();
       const tid  = setTimeout(() => ctrl.abort(), ms);
@@ -2997,24 +3003,9 @@
       }
     }
 
-    /* ─── SETTINGS / LAMBDA URL ────────────────────────────── */
-    function lambdaHost(url) {
-      try { return gaSafe(new URL(url).host, 80); } catch { return ''; }
-    }
-
+    /* ─── LAMBDA CONFIG ─────────────────────────────────────── */
     function initLambdaUrl() {
-      const configured = window.APP_CONFIG?.lambdaUrl;
-      const stored = localStorage.getItem('visualnovel_lambda_url');
-      const url = (configured && configured !== LAMBDA_PLACEHOLDER) ? configured
-                : (stored     && stored     !== LAMBDA_PLACEHOLDER) ? stored
-                : null;
-      if (url) {
-        S.lambdaUrl = url;
-        document.getElementById('lambda-url-input').value = url;
-      } else {
-        S.lambdaUrl = LAMBDA_PLACEHOLDER;
-        setTimeout(() => document.getElementById('settings-overlay').classList.remove('hidden'), 500);
-      }
+      S.lambdaUrl = configuredLambdaUrl();
     }
     function toggleSettings() {
       const overlay = document.getElementById('settings-overlay');
@@ -3028,21 +3019,6 @@
       const wasOpen = !overlay.classList.contains('hidden');
       overlay.classList.add('hidden');
       if (wasOpen) trackEvent('settings_toggled', gaStoryParams({ state: 'closed' }));
-    }
-    function saveLambdaUrl() {
-      const v = document.getElementById('lambda-url-input').value.trim();
-      if (!v.startsWith('http')) {
-        trackEvent('lambda_url_save_failed', gaStoryParams({ reason: 'invalid_url' }));
-        alert('Please enter a valid URL starting with https://');
-        return;
-      }
-      S.lambdaUrl = v;
-      localStorage.setItem('visualnovel_lambda_url', v);
-      trackEvent('lambda_url_saved', gaStoryParams({
-        lambda_host: lambdaHost(v),
-        lambda_https: Number(v.startsWith('https://')),
-      }));
-      closeSettings();
     }
 
     function toggleInfo() {
@@ -3877,9 +3853,9 @@
     /* ─── STORY GENERATION ─────────────────────────────────── */
     async function beginStory() {
       trackEvent('begin_story_clicked', gaStoryParams());
-      if (!S.lambdaUrl || S.lambdaUrl === LAMBDA_PLACEHOLDER) {
-        document.getElementById('settings-overlay').classList.remove('hidden');
+      if (!S.lambdaUrl) {
         trackEvent('begin_story_blocked', gaStoryParams({ reason: 'lambda_missing' }));
+        alert('Lambda URL not configured. Set `window.APP_CONFIG.lambdaUrl` in `src/app-config.js` and reload.');
         return;
       }
       applyTheme(S.genre);
@@ -4806,7 +4782,7 @@
       checkReady();
 
       trackEvent('app_ready', gaStoryParams({
-        lambda_configured: Number(Boolean(S.lambdaUrl && S.lambdaUrl !== LAMBDA_PLACEHOLDER)),
+        lambda_configured: Number(Boolean(S.lambdaUrl)),
       }));
 
       window.addEventListener('error', evt => {
