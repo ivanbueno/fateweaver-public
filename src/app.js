@@ -15,6 +15,14 @@
         return '';
       }
     })();
+    const MUSIC_SOURCE_VALUES = new Set(['lambda', 'local']);
+    function normalizeMusicSource(source) {
+      const value = String(source || '').trim().toLowerCase();
+      return MUSIC_SOURCE_VALUES.has(value) ? value : 'lambda';
+    }
+    const DEFAULT_BACKGROUND_MUSIC_SOURCE = normalizeMusicSource(
+      window.APP_CONFIG?.backgroundMusicSource || window.APP_CONFIG?.musicSource
+    );
 
     // ─── DATA ────────────────────────────────────────────────
     const GENRES = [
@@ -415,6 +423,7 @@
       choicesMade:   [],
       imageCache:    {},     // in-memory
       imageMode:     'lambda', // 'lambda' | 'terrain'
+      musicSource:   DEFAULT_BACKGROUND_MUSIC_SOURCE, // 'lambda' | 'local'
       hudCollapsed:  false,
       hudBeat:       1,
       storyRunStartedAt: 0,
@@ -509,6 +518,7 @@
         era: gaSafe(S.era || 'none', 48),
         archetype: gaSafe(S.archetype || 'none', 48),
         image_mode: gaSafe(S.imageMode || 'none', 16),
+        music_source: gaSafe(S.musicSource || 'none', 16),
         ...extra,
       };
     }
@@ -3804,40 +3814,59 @@
       }
     }
 
+    async function startMusicFromSource(source, eventName) {
+      if (source === 'local') {
+        const { buf, chosen } = await fetchFallbackMusicClip();
+        await startMusicLoop(buf);
+        trackEvent(eventName, gaStoryParams({
+          source: 'local_soundtrack',
+          track_name: gaSafe(chosen.replace(/\.ogg$/i, ''), 80),
+        }));
+        return;
+      }
+
+      const firstBuf = await fetchMusicClip();
+      await startMusicLoop(firstBuf);
+      trackEvent(eventName, gaStoryParams({
+        source: 'lambda',
+        clips_loaded: 1,
+      }));
+
+      // Fetch 2 more clips in parallel; they slot into rotation as they arrive.
+      fetchExtraClips();
+    }
+
     async function startBackgroundMusic() {
       if (MUS.loading) return;
       await ensureAudioPlaybackReady();
       stopMusic();
       MUS.loading = true;
       setMusicBtn('loading');
-      trackEvent('music_generation_started', gaStoryParams());
+      const preferredSource = normalizeMusicSource(S.musicSource);
+      const fallbackSource = preferredSource === 'lambda' ? 'local' : 'lambda';
+      trackEvent('music_generation_started', gaStoryParams({ source: preferredSource }));
 
       try {
-        const firstBuf = await fetchMusicClip();
-        await startMusicLoop(firstBuf);
-        trackEvent('music_generation_succeeded', gaStoryParams({ clips_loaded: 1 }));
-
-        // Fetch 2 more clips in parallel; they slot into rotation as they arrive
-        fetchExtraClips();
+        await startMusicFromSource(
+          preferredSource,
+          preferredSource === 'lambda' ? 'music_generation_succeeded' : 'music_local_source_used'
+        );
       } catch (err) {
-        console.warn('Background music unavailable:', err.message);
+        console.warn(`Background music (${preferredSource}) unavailable:`, err.message);
         trackEvent('music_generation_failed', gaStoryParams({
+          source: preferredSource,
           error_code: gaErrorCode(err),
           error_message: gaSafe(err?.message || err),
         }));
 
         try {
-          const { buf, chosen } = await fetchFallbackMusicClip();
-          await startMusicLoop(buf);
-          trackEvent('music_fallback_used', gaStoryParams({
-            source: 'local_soundtrack',
-            track_name: gaSafe(chosen.replace(/\.ogg$/i, ''), 80),
-          }));
+          await startMusicFromSource(fallbackSource, 'music_fallback_used');
         } catch (fallbackErr) {
-          console.warn('Local soundtrack fallback unavailable:', fallbackErr.message);
+          console.warn(`Background music fallback (${fallbackSource}) unavailable:`, fallbackErr.message);
           MUS.loading = false;
           setMusicBtn('hidden');
           trackEvent('music_fallback_failed', gaStoryParams({
+            source: fallbackSource,
             error_code: gaErrorCode(fallbackErr),
             error_message: gaSafe(fallbackErr?.message || fallbackErr),
           }));
