@@ -458,7 +458,11 @@
     function trackEvent(name, params = {}) {
       if (!A.enabled || typeof window.gtag !== 'function') return;
       const eventName = gaNormalizeEventName(name);
-      const payload = gaNormalizeParams({ session_id: A.sessionId, ...params });
+      const payload = gaNormalizeParams({
+        session_id: A.sessionId,
+        screen_name: gaSafe(A.lastScreen || 'unknown', 24),
+        ...params,
+      });
       window.gtag('event', eventName, payload);
     }
 
@@ -497,10 +501,9 @@
       document.head.appendChild(script);
 
       A.enabled = true;
-      trackEvent('app_loaded', {
+      trackEvent('app_loaded', gaStoryParams({
         lambda_configured: Number(Boolean(S.lambdaUrl && S.lambdaUrl !== LAMBDA_PLACEHOLDER)),
-        image_mode: gaSafe(S.imageMode || 'none', 16),
-      });
+      }));
     }
 
     /* ─── COLOUR UTILITY (mirrors `color` npm API) ──────────── */
@@ -2063,31 +2066,31 @@
     function saveLambdaUrl() {
       const v = document.getElementById('lambda-url-input').value.trim();
       if (!v.startsWith('http')) {
-        trackEvent('lambda_url_save_failed', { reason: 'invalid_url' });
+        trackEvent('lambda_url_save_failed', gaStoryParams({ reason: 'invalid_url' }));
         alert('Please enter a valid URL starting with https://');
         return;
       }
       S.lambdaUrl = v;
       localStorage.setItem('visualnovel_lambda_url', v);
-      trackEvent('lambda_url_saved', {
+      trackEvent('lambda_url_saved', gaStoryParams({
         lambda_host: lambdaHost(v),
         lambda_https: Number(v.startsWith('https://')),
-      });
+      }));
       closeSettings();
     }
 
     function toggleInfo() {
       const overlay = document.getElementById('info-overlay');
       overlay.classList.toggle('hidden');
-      trackEvent('info_toggled', {
+      trackEvent('info_toggled', gaStoryParams({
         state: overlay.classList.contains('hidden') ? 'closed' : 'open',
-      });
+      }));
     }
     function closeInfo()  {
       const overlay = document.getElementById('info-overlay');
       const wasOpen = !overlay.classList.contains('hidden');
       overlay.classList.add('hidden');
-      if (wasOpen) trackEvent('info_toggled', { state: 'closed' });
+      if (wasOpen) trackEvent('info_toggled', gaStoryParams({ state: 'closed' }));
     }
 
     function resumeCheckpointLabel(pageId) {
@@ -2181,9 +2184,9 @@
       S.hudCollapsed = !S.hudCollapsed;
       localStorage.setItem('visualnovel_hud_collapsed', S.hudCollapsed ? '1' : '0');
       applyHudState();
-      trackEvent('hud_toggled', {
+      trackEvent('hud_toggled', gaStoryParams({
         state: S.hudCollapsed ? 'collapsed' : 'expanded',
-      });
+      }));
     }
 
     /* ─── SETUP SCREEN ─────────────────────────────────────── */
@@ -2237,10 +2240,10 @@
         moreBtn.className = 'opt opt-more';
         moreBtn.textContent = `+${hidden.length} more`;
         moreBtn.onclick = () => {
-          trackEvent('selection_more_opened', {
+          trackEvent('selection_more_opened', gaStoryParams({
             field: gaSafe(stateKey, 16),
             hidden_count: hidden.length,
-          });
+          }));
           moreBtn.remove();
           hidden.forEach(label => grid.appendChild(renderBtn(label)));
         };
@@ -2746,10 +2749,10 @@
         MUS.gain.gain.setTargetAtTime(MUS.muted ? 0 : MUSIC_VOL, MUS.ctx.currentTime, 0.6);
       }
       if (MUS.ready) setMusicBtn(MUS.muted ? 'off' : 'on');
-      trackEvent('music_toggled', {
+      trackEvent('music_toggled', gaStoryParams({
         muted: Number(MUS.muted),
         music_ready: Number(MUS.ready),
-      });
+      }));
     }
 
     // Fetch + decode one music clip from Lambda
@@ -2819,7 +2822,7 @@
       trackEvent('begin_story_clicked', gaStoryParams());
       if (!S.lambdaUrl || S.lambdaUrl === LAMBDA_PLACEHOLDER) {
         document.getElementById('settings-overlay').classList.remove('hidden');
-        trackEvent('begin_story_blocked', { reason: 'lambda_missing' });
+        trackEvent('begin_story_blocked', gaStoryParams({ reason: 'lambda_missing' }));
         return;
       }
       applyTheme(S.genre);
@@ -3026,7 +3029,7 @@
           <button class="btn-primary" onclick="showScreen('setup')">Back to Setup</button>
         </div>
       `;
-      trackEvent('loading_error_shown', { error_message: gaSafe(msg) });
+      trackEvent('loading_error_shown', gaStoryParams({ error_message: gaSafe(msg) }));
     }
     function startTimer() {
       loadingStartedAt = performance.now();
@@ -3394,10 +3397,10 @@
       S.imageMode = mode;
       localStorage.setItem('visualnovel_image_mode', mode);
       if (prev !== mode) {
-        trackEvent('image_mode_changed', {
+        trackEvent('image_mode_changed', gaStoryParams({
           from_mode: gaSafe(prev, 16),
           to_mode: gaSafe(mode, 16),
-        });
+        }));
       }
     }
 
@@ -3732,20 +3735,20 @@
       renderSetupHistory();
       checkReady();
 
-      trackEvent('app_ready', {
+      trackEvent('app_ready', gaStoryParams({
         lambda_configured: Number(Boolean(S.lambdaUrl && S.lambdaUrl !== LAMBDA_PLACEHOLDER)),
-      });
+      }));
 
       window.addEventListener('error', evt => {
-        trackEvent('client_error', {
+        trackEvent('client_error', gaStoryParams({
           message: gaSafe(evt?.message || 'unknown'),
           file: gaSafe(evt?.filename || ''),
           line: Number(evt?.lineno || 0),
-        });
+        }));
       });
       window.addEventListener('unhandledrejection', evt => {
         const reason = evt?.reason?.message || evt?.reason || 'unknown';
-        trackEvent('unhandled_rejection', { message: gaSafe(reason) });
+        trackEvent('unhandled_rejection', gaStoryParams({ message: gaSafe(reason) }));
       });
     }
 
