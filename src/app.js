@@ -3206,6 +3206,13 @@
       return sortedStoryPageIds(storyObj)[0] || '';
     }
 
+    function setupHistoryEraPill(era) {
+      const value = String(era || '').trim();
+      if (!value) return '';
+      const match = value.match(/\(([^)]+)\)/);
+      return (match?.[1] || value).trim();
+    }
+
     function storedImagePayloadToDataUri(payload) {
       if (!payload || typeof payload !== 'object') return '';
       if (payload.type === 'image' && payload.data && payload.mimeType) {
@@ -3454,17 +3461,18 @@
         const front = storyFrontMatterForStorage(entry.story);
         const displayTitle = front.title || 'Untitled Chronicle';
         const displayTagline = front.tagline || storyPreviewLead(entry.story);
-        const pills = [entry.genre, entry.era, entry.archetype]
+        const pills = [entry.genre, setupHistoryEraPill(entry.era), entry.archetype]
+          .filter(Boolean)
           .map(value => `<span class="setup-history-pill">${esc(value)}</span>`)
           .join('');
         link.innerHTML = `
-          <span class="setup-history-preview" aria-hidden="true">
+          <span class="setup-history-preview">
             <img class="setup-history-preview-img hidden" alt="" loading="lazy" decoding="async">
-          </span>
-          <span class="setup-history-body">
-            <span class="setup-history-pills">${pills}</span>
-            <strong class="setup-history-title">${esc(displayTitle)}</strong>
-            <span class="setup-history-tagline">${esc(displayTagline)}</span>
+            <span class="setup-history-pills setup-history-pills-top">${pills}</span>
+            <span class="setup-history-body">
+              <strong class="setup-history-title">${esc(displayTitle)}</strong>
+              <span class="setup-history-tagline">${esc(displayTagline)}</span>
+            </span>
           </span>
         `;
         link.addEventListener('click', evt => {
