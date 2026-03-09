@@ -524,9 +524,13 @@
       RESUME: 'resume',
       RESTART: 'restart',
       NEW: 'new',
+      DELETE: 'delete',
+      CANCEL: 'cancel',
     });
     let resumeDecisionResolver = null;
     let resumeDecisionFocusEl = null;
+    let deleteStoryDecisionResolver = null;
+    let deleteStoryDecisionFocusEl = null;
     let deleteStoriesDecisionResolver = null;
     let deleteStoriesDecisionFocusEl = null;
     let setupHistoryRenderVersion = 0;
@@ -3370,6 +3374,18 @@
       }));
     }
 
+    async function deleteSavedStoryData(storyStorageKey, progressStorageKey, imageStorageKey) {
+      if (storyStorageKey) {
+        try { localStorage.removeItem(storyStorageKey); } catch {}
+      }
+      if (progressStorageKey) {
+        try { localStorage.removeItem(progressStorageKey); } catch {}
+      }
+      if (imageStorageKey) {
+        await deleteStoredStoryImages(imageStorageKey);
+      }
+    }
+
     async function replaySavedStory(entry) {
       if (!entry?.story?.pages) return;
 
@@ -3380,9 +3396,7 @@
       let clearProgress = true;
 
       const prog = lsGet(entry.progressKey);
-      const hasChoices = Array.isArray(prog?.choicesMade) && prog.choicesMade.length > 0;
-      const hasCheckpoint = Boolean(prog?.currentPage && prog.currentPage !== 'page_1');
-      const canResume = hasChoices || hasCheckpoint;
+      const canResume = true;
 
       if (canResume) {
         const resumeDecision = await promptResumeDecision(entry.story, prog);
@@ -3401,11 +3415,22 @@
           S.genre = entry.genre;
           S.era = entry.era;
           S.archetype = entry.archetype;
-          try { localStorage.removeItem(entry.key); } catch {}
-          try { localStorage.removeItem(entry.progressKey); } catch {}
-          await deleteStoredStoryImages(entry.imageKey);
+          await deleteSavedStoryData(entry.key, entry.progressKey, entry.imageKey);
           renderSetupHistory();
           await beginStory();
+          return;
+        } else if (resumeDecision === RESUME_DECISION.DELETE) {
+          await deleteSavedStoryData(entry.key, entry.progressKey, entry.imageKey);
+          renderSetupHistory();
+          trackEvent('saved_story_deleted', gaStoryParams({
+            source: 'setup_history',
+            deleted_genre: gaSafe(entry.genre, 40),
+            deleted_era: gaSafe(entry.era, 40),
+            deleted_archetype: gaSafe(entry.archetype, 40),
+          }));
+          return;
+        } else if (resumeDecision === RESUME_DECISION.CANCEL) {
+          trackEvent('story_resume_dismissed', gaStoryParams({ source: 'setup_history' }));
           return;
         }
       }
@@ -3593,7 +3618,7 @@
       if (resumeDecisionResolver) {
         const resolvePrev = resumeDecisionResolver;
         resumeDecisionResolver = null;
-        resolvePrev(RESUME_DECISION.NEW);
+        resolvePrev(RESUME_DECISION.CANCEL);
       }
 
       overlay.classList.remove('hidden');
@@ -3607,15 +3632,17 @@
 
     function normalizeResumeDecision(value) {
       if (value === true) return RESUME_DECISION.RESUME;
-      if (value === false) return RESUME_DECISION.NEW;
+      if (value === false) return RESUME_DECISION.CANCEL;
       const normalized = String(value || '').toLowerCase();
       if (normalized === RESUME_DECISION.RESUME) return RESUME_DECISION.RESUME;
       if (normalized === RESUME_DECISION.RESTART) return RESUME_DECISION.RESTART;
       if (normalized === RESUME_DECISION.NEW) return RESUME_DECISION.NEW;
-      return RESUME_DECISION.NEW;
+      if (normalized === RESUME_DECISION.DELETE) return RESUME_DECISION.DELETE;
+      if (normalized === RESUME_DECISION.CANCEL) return RESUME_DECISION.CANCEL;
+      return RESUME_DECISION.CANCEL;
     }
 
-    function handleResumeDecision(decision) {
+    function finishResumeDecision(decision) {
       const overlay = document.getElementById('resume-overlay');
       if (overlay) overlay.classList.add('hidden');
 
@@ -3627,7 +3654,53 @@
       }
       resumeDecisionFocusEl = null;
 
-      if (typeof resolve === 'function') resolve(normalizeResumeDecision(decision));
+      if (typeof resolve === 'function') resolve(decision);
+    }
+
+    function promptDeleteStoryDecision() {
+      const overlay = document.getElementById('delete-story-overlay');
+      const confirmBtn = document.getElementById('delete-story-confirm-btn');
+      if (!overlay) {
+        return Promise.resolve(confirm('Delete this saved story? This cannot be undone.'));
+      }
+
+      if (deleteStoryDecisionResolver) {
+        const resolvePrev = deleteStoryDecisionResolver;
+        deleteStoryDecisionResolver = null;
+        resolvePrev(false);
+      }
+
+      overlay.classList.remove('hidden');
+      deleteStoryDecisionFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      requestAnimationFrame(() => confirmBtn?.focus());
+
+      return new Promise(resolve => {
+        deleteStoryDecisionResolver = resolve;
+      });
+    }
+
+    function handleDeleteStoryDecision(shouldDelete) {
+      const overlay = document.getElementById('delete-story-overlay');
+      if (overlay) overlay.classList.add('hidden');
+
+      const resolve = deleteStoryDecisionResolver;
+      deleteStoryDecisionResolver = null;
+
+      if (deleteStoryDecisionFocusEl && typeof deleteStoryDecisionFocusEl.focus === 'function') {
+        deleteStoryDecisionFocusEl.focus();
+      }
+      deleteStoryDecisionFocusEl = null;
+
+      if (typeof resolve === 'function') resolve(Boolean(shouldDelete));
+    }
+
+    async function handleResumeDecision(decision) {
+      const normalized = normalizeResumeDecision(decision);
+      if (normalized === RESUME_DECISION.DELETE) {
+        const shouldDelete = await promptDeleteStoryDecision();
+        if (!shouldDelete) return;
+      }
+      finishResumeDecision(normalized);
     }
 
     function hudIconForBeat(beat) {
@@ -4442,14 +4515,24 @@
             page_id: 'page_1',
           }));
           return;
-        } else {
-          localStorage.removeItem(storyKey());
-          localStorage.removeItem(progressKey());
-          await deleteStoredStoryImages(storyImageKey());
+        } else if (resumeDecision === RESUME_DECISION.NEW) {
+          await deleteSavedStoryData(storyKey(), progressKey(), storyImageKey());
           resetImageState();
           S.storyRunStartedAt = 0;
           renderSetupHistory();
           trackEvent('saved_story_discarded', gaStoryParams());
+        } else if (resumeDecision === RESUME_DECISION.DELETE) {
+          await deleteSavedStoryData(storyKey(), progressKey(), storyImageKey());
+          resetImageState();
+          S.storyRunStartedAt = 0;
+          renderSetupHistory();
+          trackEvent('saved_story_deleted', gaStoryParams({ source: 'resume_dialog' }));
+          return;
+        } else if (resumeDecision === RESUME_DECISION.CANCEL) {
+          trackEvent('story_resume_dismissed', gaStoryParams({ source: 'resume_dialog' }));
+          return;
+        } else {
+          return;
         }
       }
 
@@ -5441,6 +5524,12 @@
       });
       document.addEventListener('keydown', evt => {
         if (evt.key !== 'Escape') return;
+        const deleteStoryOverlay = document.getElementById('delete-story-overlay');
+        if (deleteStoryOverlay && !deleteStoryOverlay.classList.contains('hidden')) {
+          evt.preventDefault();
+          handleDeleteStoryDecision(false);
+          return;
+        }
         const deleteStoriesOverlay = document.getElementById('delete-stories-overlay');
         if (deleteStoriesOverlay && !deleteStoriesOverlay.classList.contains('hidden')) {
           evt.preventDefault();
@@ -5450,8 +5539,22 @@
         const resumeOverlay = document.getElementById('resume-overlay');
         if (!resumeOverlay || resumeOverlay.classList.contains('hidden')) return;
         evt.preventDefault();
-        handleResumeDecision(RESUME_DECISION.RESTART);
+        handleResumeDecision(RESUME_DECISION.CANCEL);
       });
+      const resumeOverlay = document.getElementById('resume-overlay');
+      if (resumeOverlay) {
+        resumeOverlay.addEventListener('click', evt => {
+          if (evt.target !== resumeOverlay) return;
+          handleResumeDecision(RESUME_DECISION.CANCEL);
+        });
+      }
+      const deleteStoryOverlay = document.getElementById('delete-story-overlay');
+      if (deleteStoryOverlay) {
+        deleteStoryOverlay.addEventListener('click', evt => {
+          if (evt.target !== deleteStoryOverlay) return;
+          handleDeleteStoryDecision(false);
+        });
+      }
       showScreen('setup');
       renderSetupHistory();
       checkReady();

@@ -120,6 +120,7 @@
   <!-- ─── RESUME STORY DIALOG ─── -->
   <div id="resume-overlay" class="resume-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="resume-title" aria-describedby="resume-copy">
     <div class="resume-card">
+      <button class="btn-close resume-close-btn" onclick="handleResumeDecision('cancel')" aria-label="Dismiss resume dialog" title="Dismiss">✕</button>
       <p class="resume-kicker">Saved Story Found</p>
       <h3 id="resume-title">Continue your previous run?</h3>
       <p id="resume-copy" class="resume-copy">A local checkpoint exists for this setup.</p>
@@ -137,6 +138,7 @@
         <button id="resume-btn" class="btn-primary" onclick="handleResumeDecision('resume')">resume story</button>
         <button id="restart-btn" class="btn-secondary" onclick="handleResumeDecision('restart')">start from beginning</button>
         <button id="new-story-btn" class="btn-secondary" onclick="handleResumeDecision('new')">new story</button>
+        <button id="delete-story-btn" class="btn-secondary" onclick="handleResumeDecision('delete')">delete story</button>
       </div>
     </div>
   </div>
@@ -160,6 +162,19 @@
       <div class="settings-row resume-actions">
         <button id="delete-stories-confirm-btn" class="btn-primary" onclick="handleDeleteStoriesDecision(true)">Delete stories</button>
         <button id="delete-stories-cancel-btn" class="btn-secondary" onclick="handleDeleteStoriesDecision(false)">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── DELETE STORY DIALOG ─── -->
+  <div id="delete-story-overlay" class="resume-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="delete-story-title" aria-describedby="delete-story-copy">
+    <div class="resume-card">
+      <p class="resume-kicker">Delete Story</p>
+      <h3 id="delete-story-title">Delete this saved story?</h3>
+      <p id="delete-story-copy" class="resume-copy">This permanently removes the story, checkpoint, and associated cached images from this device.</p>
+      <div class="settings-row resume-actions">
+        <button id="delete-story-confirm-btn" class="btn-primary" onclick="handleDeleteStoryDecision(true)">Delete story</button>
+        <button id="delete-story-cancel-btn" class="btn-secondary" onclick="handleDeleteStoryDecision(false)">Cancel</button>
       </div>
     </div>
   </div>
@@ -214,7 +229,7 @@
                 <path d="M3 6h18M9 6V4h6v2m-8 0l1 14h8l1-14M10 10v7m4-7v7" />
               </svg>
             </span>
-            <span>Delete stories</span>
+            <span>Delete all stories</span>
           </button>
         </div>
         <div id="setup-history-list" class="setup-history-list"></div>
