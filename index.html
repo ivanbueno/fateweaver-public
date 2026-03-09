@@ -46,7 +46,7 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
+    "@type": "SoftwareApplication",
     "name": "Fateweaver",
     "url": "https://www.fateweaver.net/",
     "applicationCategory": "GameApplication",
@@ -66,10 +66,10 @@
   <!-- ─── SETTINGS PANEL ─── -->
   <div id="settings-overlay" class="settings-overlay hidden">
     <div class="settings-card">
-      <div class="settings-header">
+      <header class="settings-header">
         <h3>Scene Settings</h3>
         <button class="btn-close" onclick="closeSettings()">✕</button>
-      </div>
+      </header>
       <p class="settings-sublabel">Scene images</p>
       <div class="settings-radio-group">
         <label class="settings-radio">
@@ -90,10 +90,10 @@
   <!-- ─── INFO OVERLAY ─── -->
   <div id="info-overlay" class="info-overlay hidden">
     <div class="info-card">
-      <div class="info-header">
+      <header class="info-header">
         <span class="info-logo">✦ Fateweaver</span>
         <button class="btn-close" onclick="closeInfo()">✕</button>
-      </div>
+      </header>
       <section class="seo-copy">
         <h2>What is Fateweaver?</h2>
         <p>
@@ -110,10 +110,10 @@
           Fateweaver is built for fans of visual novels, interactive fiction, branching narratives, and AI-generated storytelling. It is designed for replayability, fast idea generation, and immersive story discovery.
         </p>
       </section>
-      <div class="info-meta">
+      <footer class="info-meta">
         <span>© Fateweaver 2026</span>
         <a href="mailto:dev@ivanbueno.com" class="info-link">dev@ivanbueno.com</a>
-      </div>
+      </footer>
     </div>
   </div>
 
@@ -163,31 +163,34 @@
     </div>
   </div>
 
-  <!-- ─── HOME BUTTON ─── -->
-  <button id="btn-home" class="home-btn home-hidden" onclick="goHome()" title="Go to Home" aria-label="Go to home screen">
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 3.2 2.4 10.9l1.2 1.5L5.8 10v10.8h5.8v-6h1v6h5.8V10l2.2 2.4 1.2-1.5z"/>
-    </svg>
-  </button>
+  <header aria-label="Global controls">
+    <!-- ─── HOME BUTTON ─── -->
+    <button id="btn-home" class="home-btn home-hidden" onclick="goHome()" title="Go to Home" aria-label="Go to home screen">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 3.2 2.4 10.9l1.2 1.5L5.8 10v10.8h5.8v-6h1v6h5.8V10l2.2 2.4 1.2-1.5z"/>
+      </svg>
+    </button>
 
-  <!-- ─── INFO BUTTON ─── -->
-  <button class="info-btn" onclick="toggleInfo()" title="About Fateweaver"><span class="info-btn-icon" aria-hidden="true">&#x2139;&#xFE0E;</span></button>
+    <!-- ─── INFO BUTTON ─── -->
+    <button class="info-btn" onclick="toggleInfo()" title="About Fateweaver"><span class="info-btn-icon" aria-hidden="true">&#x2139;&#xFE0E;</span></button>
 
-  <!-- ─── MUSIC BUTTON ─── -->
-  <button id="music-btn" class="music-btn mus-hidden" onclick="toggleMusicMute()" title="Toggle music" aria-label="Toggle background music">♩</button>
+    <!-- ─── MUSIC BUTTON ─── -->
+    <button id="music-btn" class="music-btn mus-hidden" onclick="toggleMusicMute()" title="Toggle music" aria-label="Toggle background music">♩</button>
 
-  <!-- ─── HUD BUTTON ─── -->
-  <button id="hud-btn" class="hud-btn hud-hidden" onclick="toggleHud()" title="Hide HUD" aria-label="Hide tactical HUD" aria-pressed="true">▣</button>
+    <!-- ─── HUD BUTTON ─── -->
+    <button id="hud-btn" class="hud-btn hud-hidden" onclick="toggleHud()" title="Hide HUD" aria-label="Hide tactical HUD" aria-pressed="true">▣</button>
+  </header>
 
+  <main id="app-main">
   <!-- ═══════════════════════════════════════
        SETUP SCREEN — Sequential reveal
   ═══════════════════════════════════════ -->
-  <div id="screen-setup" class="screen">
+  <section id="screen-setup" class="screen" aria-label="Story setup">
     <div class="screen-bg" id="setup-bg" aria-hidden="true"></div>
     <div class="setup-wrap">
 
       <!-- Hero / Title -->
-      <div class="setup-hero">
+      <header class="setup-hero">
         <div class="title-ornament">✦</div>
         <div class="game-title-row">
           <div class="game-logo-wrap">
@@ -199,7 +202,7 @@
         <p class="game-description">
           Build a playable visual novel in seconds. Pick a genre, era, and archetype, then shape the outcome through meaningful choices, branching scenes, and multiple endings.
         </p>
-      </div>
+      </header>
 
       <details id="setup-history" class="setup-history hidden">
         <summary id="setup-history-summary" class="setup-history-summary">Replay Previous Stories</summary>
@@ -216,7 +219,7 @@
         <div id="setup-history-list" class="setup-history-list"></div>
       </details>
 
-      <div class="setup-console">
+      <section class="setup-console" aria-label="Story setup options">
         <!-- Step 1: Genre (always visible) -->
         <div id="genre-section" class="setup-section">
           <div class="step-header">
@@ -269,15 +272,15 @@
             <span class="begin-arrow">↳</span>
           </button>
         </div>
-      </div>
+      </section>
 
     </div>
-  </div>
+  </section>
 
   <!-- ═══════════════════════════════════════
        LOADING SCREEN
   ═══════════════════════════════════════ -->
-  <div id="screen-loading" class="screen hidden">
+  <section id="screen-loading" class="screen hidden" aria-label="Story generation loading">
     <div class="screen-bg" id="loading-bg" aria-hidden="true"></div>
     <div class="loading-wrap" id="loading-wrap">
       <div class="loading-atmo" aria-hidden="true">
@@ -310,12 +313,12 @@
         <span class="loading-intel-text" id="loading-intel-text">Stabilizing narrative systems...</span>
       </p>
     </div>
-  </div>
+  </section>
 
   <!-- ═══════════════════════════════════════
        GAME SCREEN — Full-screen cinematic
   ═══════════════════════════════════════ -->
-  <div id="screen-game" class="screen hidden">
+  <section id="screen-game" class="screen hidden" aria-label="Gameplay screen">
     <div class="game-layout">
 
       <!-- Full-screen image background -->
@@ -345,20 +348,20 @@
       </div>
 
       <!-- Story text + choices overlay at bottom -->
-      <div class="story-overlay">
+      <section class="story-overlay" aria-label="Story content and choices">
         <div class="story-content">
           <p id="story-text" class="story-text"></p>
           <div class="choices" id="choices"></div>
         </div>
-      </div>
+      </section>
 
     </div>
-  </div>
+  </section>
 
   <!-- ═══════════════════════════════════════
        ENDING SCREEN
   ═══════════════════════════════════════ -->
-  <div id="screen-ending" class="screen hidden">
+  <section id="screen-ending" class="screen hidden" aria-label="Ending summary screen">
     <div class="ending-canvas" aria-hidden="true">
       <img id="ending-bg-img" class="ending-bg-media hidden" alt="">
       <div id="ending-bg-svg" class="ending-bg-media ending-bg-svg hidden"></div>
@@ -399,13 +402,14 @@
         <p class="ending-logline" id="ending-logline"></p>
       </div>
 
-      <div class="ending-actions ending-reveal">
+      <div class="ending-actions ending-reveal" role="group" aria-label="Ending actions">
         <button id="ending-share-btn" class="btn-secondary" onclick="shareEnding()">⧉ Copy Story</button>
         <button class="btn-secondary" onclick="playAgain()">↺ Replay Route</button>
         <button class="btn-primary"   onclick="newStory()">✦ New Story</button>
       </div>
     </div>
-  </div>
+  </section>
+  </main>
 
   <script src="src/app-config.js"></script>
   <script src="src/app.js"></script>
