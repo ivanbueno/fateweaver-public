@@ -2746,11 +2746,13 @@
     const STORY_IMAGE_KEY_PREFIX = 'visualnovel_story_images_';
     const PROGRESS_KEY_PREFIX = 'visualnovel_progress_';
     const LEGACY_STORY_ARCHIVE_PREFIX = 'visualnovel_completed_story_';
-    const MAX_STORED_IMAGE_DATA_CHARS = 2_000_000;
+    const MAX_STORED_IMAGE_DATA_CHARS = 25_000_000;
+    const MAX_STORED_SVG_DATA_CHARS = 2_000_000;
     const STORY_IMAGE_DB_NAME = 'visualnovel_story_image_cache';
     const STORY_IMAGE_DB_VERSION = 1;
     const STORY_IMAGE_DB_STORE = 'images';
     let storyImageDbPromise = null;
+    const storyImageWriteQueue = new Map();
 
     /* ─── STORAGE HELPERS ──────────────────────────────────── */
     const slug = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -2774,6 +2776,22 @@
 
     function removeLegacyStoredStoryImagesLocal(imageStorageKey) {
       try { localStorage.removeItem(imageStorageKey); } catch {}
+    }
+
+    function enqueueStoryImageWrite(imageStorageKey, operation) {
+      if (!imageStorageKey || typeof operation !== 'function') return Promise.resolve(false);
+      const prior = storyImageWriteQueue.get(imageStorageKey) || Promise.resolve();
+      const next = prior
+        .catch(() => {})
+        .then(operation)
+        .catch(() => false);
+      storyImageWriteQueue.set(imageStorageKey, next);
+      next.finally(() => {
+        if (storyImageWriteQueue.get(imageStorageKey) === next) {
+          storyImageWriteQueue.delete(imageStorageKey);
+        }
+      });
+      return next;
     }
 
     function openStoryImageDb() {
@@ -2852,7 +2870,7 @@
       });
     }
 
-    async function deleteStoredStoryImages(imageStorageKey) {
+    async function deleteStoredStoryImagesNow(imageStorageKey) {
       if (!imageStorageKey) return false;
       removeLegacyStoredStoryImagesLocal(imageStorageKey);
       const db = await openStoryImageDb();
@@ -2870,7 +2888,16 @@
       });
     }
 
+    async function deleteStoredStoryImages(imageStorageKey) {
+      return enqueueStoryImageWrite(imageStorageKey, () => deleteStoredStoryImagesNow(imageStorageKey));
+    }
+
     async function clearAllStoredStoryImages() {
+      const pendingWrites = Array.from(storyImageWriteQueue.values());
+      if (pendingWrites.length) {
+        await Promise.allSettled(pendingWrites);
+      }
+
       try {
         for (let i = localStorage.length - 1; i >= 0; i--) {
           const key = localStorage.key(i);
@@ -2910,14 +2937,27 @@
       if (!raw || typeof raw !== 'object') return null;
       if (raw.type === 'image') {
         const data = typeof raw.data === 'string' ? raw.data : '';
-        const mimeType = typeof raw.mimeType === 'string' ? raw.mimeType : '';
+        const rawMimeType = typeof raw.mimeType === 'string' ? raw.mimeType.trim().toLowerCase() : '';
+        const mimeTypeCandidate = rawMimeType.split(';')[0].trim();
+        const mimeAlias = {
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          webp: 'image/webp',
+          gif: 'image/gif',
+          avif: 'image/avif',
+        };
+        let mimeType = mimeTypeCandidate;
+        if (!/^image\//i.test(mimeType)) {
+          mimeType = mimeAlias[mimeType] || mimeAlias[rawMimeType] || 'image/png';
+        }
         if (!data || data.length > MAX_STORED_IMAGE_DATA_CHARS) return null;
         if (!/^image\/[a-z0-9.+-]+$/i.test(mimeType)) return null;
         return { type: 'image', data, mimeType };
       }
       if (raw.type === 'svg') {
         const data = typeof raw.data === 'string' ? raw.data : '';
-        if (!data || data.length > MAX_STORED_IMAGE_DATA_CHARS) return null;
+        if (!data || data.length > MAX_STORED_SVG_DATA_CHARS) return null;
         return { type: 'svg', data };
       }
       return null;
@@ -2988,24 +3028,38 @@
       imageStorageKey = storyImageKey(),
       selectionMeta = { genre: S.genre, era: S.era, archetype: S.archetype }
     ) {
-      if (!storyObj?.pages || !selectionMeta.genre || !selectionMeta.era || !selectionMeta.archetype || !imageStorageKey) return;
-      const existing = await loadStoredStoryImages(storyObj, imageStorageKey, selectionMeta);
-      const fresh = storyImagesFromCurrentSession(storyObj, storySessionId);
-      const merged = pruneStoredImagesForStory({ ...existing, ...fresh }, storyObj);
-      const orderedIds = sortedStoryPageIds(storyObj).filter(id => Object.prototype.hasOwnProperty.call(merged, id));
+      if (!storyObj?.pages || !selectionMeta.genre || !selectionMeta.era || !selectionMeta.archetype || !imageStorageKey) return false;
+      return enqueueStoryImageWrite(imageStorageKey, async () => {
+        const fresh = storyImagesFromCurrentSession(storyObj, storySessionId);
+        if (!Object.keys(fresh).length) return true;
 
-      if (!orderedIds.length) {
-        await deleteStoredStoryImages(imageStorageKey);
-        return;
-      }
+        const existing = await loadStoredStoryImages(storyObj, imageStorageKey, selectionMeta);
+        const merged = pruneStoredImagesForStory({ ...existing, ...fresh }, storyObj);
+        const orderedIds = sortedStoryPageIds(storyObj).filter(id => Object.prototype.hasOwnProperty.call(merged, id));
 
-      const images = {};
-      orderedIds.forEach(pageId => { images[pageId] = merged[pageId]; });
-      await writeStoredStoryImagesRecord(imageStorageKey, {
-        meta: { genre: selectionMeta.genre, era: selectionMeta.era, archetype: selectionMeta.archetype, updatedAt: Date.now() },
-        images,
+        if (!orderedIds.length) {
+          await deleteStoredStoryImagesNow(imageStorageKey);
+          return false;
+        }
+
+        while (orderedIds.length > 0) {
+          const images = {};
+          orderedIds.forEach(pageId => { images[pageId] = merged[pageId]; });
+          const ok = await writeStoredStoryImagesRecord(imageStorageKey, {
+            meta: { genre: selectionMeta.genre, era: selectionMeta.era, archetype: selectionMeta.archetype, updatedAt: Date.now() },
+            images,
+          });
+          if (ok) {
+            removeLegacyStoredStoryImagesLocal(imageStorageKey);
+            return true;
+          }
+          orderedIds.pop();
+        }
+
+        await deleteStoredStoryImagesNow(imageStorageKey);
+        removeLegacyStoredStoryImagesLocal(imageStorageKey);
+        return false;
       });
-      removeLegacyStoredStoryImagesLocal(imageStorageKey);
     }
 
     async function hydrateStoredStoryImages(storyObj, storySessionId = S.storySessionId, imageStorageKey = storyImageKey()) {
