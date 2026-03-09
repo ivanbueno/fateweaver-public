@@ -496,6 +496,7 @@
       genre:         null,
       era:           null,
       archetype:     null,
+      storyStorageId: '',
       story:         null,   // { title, tagline, pages: { page_1: {...}, ... } }
       currentPageId: 'page_1',
       choicesMade:   [],
@@ -2761,13 +2762,32 @@
 
     /* ─── STORAGE HELPERS ──────────────────────────────────── */
     const slug = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-
-    function storyImageKeyForSelection(genre, era, archetype) {
-      return `${STORY_IMAGE_KEY_PREFIX}${slug(genre)}_${slug(era)}_${slug(archetype)}`;
+    function selectionStorageId(genre, era, archetype) {
+      return `${slug(genre)}_${slug(era)}_${slug(archetype)}`;
     }
-    function storyKey()      { return `${STORY_KEY_PREFIX}${slug(S.genre)}_${slug(S.era)}_${slug(S.archetype)}`; }
-    function storyImageKey() { return storyImageKeyForSelection(S.genre, S.era, S.archetype); }
-    function progressKey()   { return `${PROGRESS_KEY_PREFIX}${slug(S.genre)}_${slug(S.era)}_${slug(S.archetype)}`; }
+    function createStoryStorageId() {
+      return `story_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+    function storyStorageIdFromKey(key) {
+      if (!key || !key.startsWith(STORY_KEY_PREFIX)) return '';
+      return key.slice(STORY_KEY_PREFIX.length);
+    }
+    function storyKeyForId(storyId) {
+      return storyId ? `${STORY_KEY_PREFIX}${storyId}` : '';
+    }
+    function storyImageKeyForId(storyId) {
+      return storyId ? `${STORY_IMAGE_KEY_PREFIX}${storyId}` : '';
+    }
+    function progressKeyForId(storyId) {
+      return storyId ? `${PROGRESS_KEY_PREFIX}${storyId}` : '';
+    }
+    function storyKey()      { return storyKeyForId(S.storyStorageId); }
+    function storyImageKey() { return storyImageKeyForId(S.storyStorageId); }
+    function progressKey()   { return progressKeyForId(S.storyStorageId); }
+    function ensureCurrentStoryStorageId() {
+      if (!S.storyStorageId) S.storyStorageId = createStoryStorageId();
+      return S.storyStorageId;
+    }
 
     function lsGet(k)   { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
     function lsSet(k,v) {
@@ -3109,29 +3129,37 @@
 
     function saveStory(storyObj) {
       if (!storyObj?.pages) return;
+      const storyId = ensureCurrentStoryStorageId();
+      const key = storyKeyForId(storyId);
       const pages = storyPagesForStorage(storyObj);
       const front = storyFrontMatterForStorage(storyObj);
-      const existing = loadStoredStory();
+      const existing = loadStoredStory(storyId);
       const generatedAt = Number(existing?.meta?.generatedAt) || Date.now();
-      lsSet(storyKey(), {
-        meta: { genre: S.genre, era: S.era, archetype: S.archetype, generatedAt },
+      lsSet(key, {
+        meta: { storyId, genre: S.genre, era: S.era, archetype: S.archetype, generatedAt },
         title: front.title,
         tagline: front.tagline,
         pages,
       });
-      void saveStoredStoryImages(storyObj);
+      void saveStoredStoryImages(storyObj, S.storySessionId, storyImageKeyForId(storyId), {
+        genre: S.genre,
+        era: S.era,
+        archetype: S.archetype,
+      });
     }
-    function loadStoredStory() { return lsGet(storyKey()); }
+    function loadStoredStory(storyId = S.storyStorageId) {
+      return lsGet(storyKeyForId(storyId));
+    }
 
     function removeLegacyCompletedStoriesForSelection(genre, era, archetype) {
-      const target = `${slug(genre)}_${slug(era)}_${slug(archetype)}`;
+      const target = selectionStorageId(genre, era, archetype);
       try {
         for (let i = localStorage.length - 1; i >= 0; i--) {
           const key = localStorage.key(i);
           if (!key || !key.startsWith(LEGACY_STORY_ARCHIVE_PREFIX)) continue;
           const stored = lsGet(key);
           const meta = stored?.meta || {};
-          const candidate = `${slug(meta.genre)}_${slug(meta.era)}_${slug(meta.archetype)}`;
+          const candidate = selectionStorageId(meta.genre, meta.era, meta.archetype);
           if (candidate !== target) continue;
           localStorage.removeItem(key);
         }
@@ -3141,9 +3169,10 @@
     function saveCompletedStory(endingType) {
       if (!S.story?.pages || !S.genre || !S.era || !S.archetype) return;
 
+      const storyId = ensureCurrentStoryStorageId();
       const now = Date.now();
-      const key = storyKey();
-      const active = loadStoredStory();
+      const key = storyKeyForId(storyId);
+      const active = loadStoredStory(storyId);
       const generatedAt = Number(active?.meta?.generatedAt) || now;
       const front = storyFrontMatterForStorage(S.story);
       removeLegacyCompletedStoriesForSelection(S.genre, S.era, S.archetype);
@@ -3151,6 +3180,7 @@
 
       lsSet(key, {
         meta: {
+          storyId,
           genre: S.genre,
           era: S.era,
           archetype: S.archetype,
@@ -3162,18 +3192,26 @@
         tagline: front.tagline,
         pages: storyPagesForStorage(S.story),
       });
-      void saveStoredStoryImages(S.story);
+      void saveStoredStoryImages(S.story, S.storySessionId, storyImageKeyForId(storyId), {
+        genre: S.genre,
+        era: S.era,
+        archetype: S.archetype,
+      });
     }
 
     function saveProgress() {
       if (!S.storyRunStartedAt) S.storyRunStartedAt = Date.now();
-      lsSet(progressKey(), {
+      const key = progressKey();
+      if (!key) return;
+      lsSet(key, {
         currentPage: S.currentPageId,
         choicesMade: S.choicesMade,
         startedAt: S.storyRunStartedAt,
       });
     }
-    function loadProgress() { return lsGet(progressKey()); }
+    function loadProgress(storyId = S.storyStorageId) {
+      return lsGet(progressKeyForId(storyId));
+    }
 
     // Image cache is kept in memory for active rendering and mirrored to IndexedDB for saved stories.
     function imageCacheKey(pageId, storySessionId = S.storySessionId) {
@@ -3266,12 +3304,15 @@
           const genre = String(meta.genre || 'Unknown Genre');
           const era = String(meta.era || 'Unknown Era');
           const archetype = String(meta.archetype || 'Unknown Archetype');
+          const storyId = String(meta.storyId || storyStorageIdFromKey(key) || '').trim();
+          if (!storyId) continue;
           const isCompleted = Number(meta.completedAt) > 0;
           stories.push({
             key,
+            storyId,
             kind: isCompleted ? 'completed' : 'active',
-            progressKey: `${PROGRESS_KEY_PREFIX}${slug(genre)}_${slug(era)}_${slug(archetype)}`,
-            imageKey: key.replace(STORY_KEY_PREFIX, STORY_IMAGE_KEY_PREFIX),
+            progressKey: progressKeyForId(storyId),
+            imageKey: storyImageKeyForId(storyId),
             story: stored,
             genre,
             era,
@@ -3286,6 +3327,12 @@
 
       stories.sort((a, b) => Math.max(b.completedAt, b.generatedAt) - Math.max(a.completedAt, a.generatedAt));
       return stories;
+    }
+    function latestSavedStoryForSelection(genre, era, archetype) {
+      const target = selectionStorageId(genre, era, archetype);
+      return savedStoriesFromStorage().find(entry => (
+        selectionStorageId(entry.genre, entry.era, entry.archetype) === target
+      )) || null;
     }
 
     function savedStoryStorageKeys() {
@@ -3415,9 +3462,8 @@
           S.genre = entry.genre;
           S.era = entry.era;
           S.archetype = entry.archetype;
-          await deleteSavedStoryData(entry.key, entry.progressKey, entry.imageKey);
-          renderSetupHistory();
-          await beginStory();
+          S.storyStorageId = '';
+          await beginStory({ forceNew: true });
           return;
         } else if (resumeDecision === RESUME_DECISION.DELETE) {
           await deleteSavedStoryData(entry.key, entry.progressKey, entry.imageKey);
@@ -3438,6 +3484,7 @@
       S.genre = entry.genre;
       S.era = entry.era;
       S.archetype = entry.archetype;
+      S.storyStorageId = entry.storyId;
       S.story = storyFromStoredRecord(entry.story);
       S.currentPageId = targetPage;
       S.choicesMade = targetChoices;
@@ -3446,7 +3493,7 @@
       S.storyRunStartedAt = targetStartedAt;
 
       saveStory(S.story);
-      if (clearProgress) localStorage.removeItem(entry.progressKey);
+      if (clearProgress && entry.progressKey) localStorage.removeItem(entry.progressKey);
 
       applyTheme(S.genre);
       showScreen('game');
@@ -3593,11 +3640,12 @@
 
     function promptResumeDecision(existing, progress) {
       const overlay = document.getElementById('resume-overlay');
+      const storyTitleEl = document.getElementById('resume-story-title');
       const checkpointEl = document.getElementById('resume-meta-checkpoint');
       const decisionsEl = document.getElementById('resume-meta-decisions');
       const copyEl = document.getElementById('resume-copy');
       const resumeBtn = document.getElementById('resume-btn');
-      if (!overlay || !checkpointEl || !decisionsEl || !copyEl) {
+      if (!overlay || !storyTitleEl || !checkpointEl || !decisionsEl || !copyEl) {
         return Promise.resolve(
           confirm('A saved story exists for this combination.\n\nContinue where you left off?')
             ? RESUME_DECISION.RESUME
@@ -3608,7 +3656,9 @@
       const pageId = progress?.currentPage || 'page_1';
       const choicesCount = Array.isArray(progress?.choicesMade) ? progress.choicesMade.length : 0;
       const pageCount = Object.keys(existing?.pages || {}).length;
+      const storyTitle = normalizeStoryText(existing?.title, 120) || 'Untitled Chronicle';
 
+      storyTitleEl.textContent = storyTitle;
       checkpointEl.textContent = resumeCheckpointLabel(pageId);
       decisionsEl.textContent = `${choicesCount} decision${choicesCount === 1 ? '' : 's'}`;
       copyEl.textContent = pageCount
@@ -4463,7 +4513,8 @@
     }
 
     /* ─── STORY GENERATION ─────────────────────────────────── */
-    async function beginStory() {
+    async function beginStory(options = {}) {
+      const forceNew = Boolean(options?.forceNew);
       trackEvent('begin_story_clicked', gaStoryParams());
       if (!S.lambdaUrl) {
         trackEvent('begin_story_blocked', gaStoryParams({ reason: 'lambda_missing' }));
@@ -4477,9 +4528,10 @@
       new Audio('sfx/knock.mp3').play().catch(() => {});
 
       // Check for existing saved story
-      const existing = loadStoredStory();
-      if (existing?.pages) {
-        const prog = loadProgress();
+      const existingEntry = forceNew ? null : latestSavedStoryForSelection(S.genre, S.era, S.archetype);
+      const existing = existingEntry?.story;
+      if (existing?.pages && existingEntry?.storyId) {
+        const prog = loadProgress(existingEntry.storyId);
         const resumeDecision = await promptResumeDecision(existing, prog);
         const shouldResume = resumeDecision === RESUME_DECISION.RESUME;
         trackEvent('story_resume_prompted', gaStoryParams({
@@ -4487,11 +4539,12 @@
           resume_decision: resumeDecision,
         }));
         if (resumeDecision === RESUME_DECISION.RESUME) {
+          S.storyStorageId = existingEntry.storyId;
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = prog?.currentPage || 'page_1';
           S.choicesMade   = prog?.choicesMade  || [];
           resetImageState();
-          await hydrateStoredStoryImages(S.story, S.storySessionId);
+          await hydrateStoredStoryImages(S.story, S.storySessionId, existingEntry.imageKey);
           S.storyRunStartedAt = Number(prog?.startedAt) || Date.now();
           showScreen('game');
           renderPage(S.currentPageId);
@@ -4502,11 +4555,12 @@
           }));
           return;
         } else if (resumeDecision === RESUME_DECISION.RESTART) {
+          S.storyStorageId = existingEntry.storyId;
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = 'page_1';
           S.choicesMade = [];
           resetImageState();
-          await hydrateStoredStoryImages(S.story, S.storySessionId);
+          await hydrateStoredStoryImages(S.story, S.storySessionId, existingEntry.imageKey);
           S.storyRunStartedAt = Date.now();
           showScreen('game');
           renderPage('page_1');
@@ -4516,13 +4570,14 @@
           }));
           return;
         } else if (resumeDecision === RESUME_DECISION.NEW) {
-          await deleteSavedStoryData(storyKey(), progressKey(), storyImageKey());
+          S.storyStorageId = '';
           resetImageState();
           S.storyRunStartedAt = 0;
           renderSetupHistory();
           trackEvent('saved_story_discarded', gaStoryParams());
         } else if (resumeDecision === RESUME_DECISION.DELETE) {
-          await deleteSavedStoryData(storyKey(), progressKey(), storyImageKey());
+          await deleteSavedStoryData(existingEntry.key, existingEntry.progressKey, existingEntry.imageKey);
+          if (S.storyStorageId === existingEntry.storyId) S.storyStorageId = '';
           resetImageState();
           S.storyRunStartedAt = 0;
           renderSetupHistory();
@@ -4535,6 +4590,7 @@
           return;
         }
       }
+      S.storyStorageId = '';
 
       showScreen('loading');
       resetLoading();
@@ -5375,7 +5431,8 @@
       }
 
       saveCompletedStory(type);
-      localStorage.removeItem(progressKey());
+      const progKey = progressKey();
+      if (progKey) localStorage.removeItem(progKey);
       renderSetupHistory();
 
       trackEvent('ending_viewed', gaStoryParams({
@@ -5427,7 +5484,8 @@
     function playAgain() {
       // Keep the story and music, reset progress to page_1
       if (S.story?.pages) saveStory(S.story);
-      localStorage.removeItem(progressKey());
+      const progKey = progressKey();
+      if (progKey) localStorage.removeItem(progKey);
       S.currentPageId = 'page_1';
       S.choicesMade   = [];
       S.storyRunStartedAt = Date.now();
@@ -5453,7 +5511,7 @@
       trackEvent('new_story_clicked', gaStoryParams({
         prior_choices: S.choicesMade.length,
       }));
-      // Fade out music first, then clear all data and go to setup
+      // Fade out music first, keep the current story snapshot, then return to setup.
       const FADE_MS = 800;
       if (MUS.gain && MUS.ctx) {
         MUS.gain.gain.setTargetAtTime(0, MUS.ctx.currentTime, FADE_MS / 3000);
@@ -5464,13 +5522,12 @@
         const stored = loadStoredStory();
         if (Number(stored?.meta?.completedAt) > 0) {
           saveCompletedStory(S.lastEndingType || stored?.meta?.endingType || 'good');
-        } else {
-          localStorage.removeItem(storyKey());
-          await deleteStoredStoryImages(storyImageKey());
+        } else if (S.story?.pages) {
+          saveStory(S.story);
         }
-        localStorage.removeItem(progressKey());
         renderSetupHistory();
         S.story = null;
+        S.storyStorageId = '';
         resetImageState();
         S.currentPageId = 'page_1'; S.choicesMade = [];
         S.storyRunStartedAt = 0;
