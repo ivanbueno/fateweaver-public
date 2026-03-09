@@ -4132,7 +4132,10 @@
       await new Promise(resolve => setTimeout(resolve, 420));
     }
     function showLoadError(msg) {
-      const safeMsg = msg || 'Story generation failed.';
+      const rawMsg = msg || 'Story generation failed.';
+      const safeMsg = /fetch failed|failed to fetch/i.test(rawMsg)
+        ? 'Request blocked. Disable AdBlock and try again.'
+        : rawMsg;
       const poetry = loadErrorPoetryForGenre(S.genre);
       document.getElementById('loading-wrap').innerHTML = `
         <div class="error-wrap">
