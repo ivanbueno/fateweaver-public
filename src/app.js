@@ -529,6 +529,7 @@
     let resumeDecisionFocusEl = null;
     let deleteStoriesDecisionResolver = null;
     let deleteStoriesDecisionFocusEl = null;
+    let setupHistoryRenderVersion = 0;
 
     function gaSafe(value, maxLen = 120) {
       if (value === null || value === undefined) return '';
@@ -3200,6 +3201,46 @@
       return text;
     }
 
+    function storyPreviewPageId(storyObj) {
+      if (storyObj?.pages?.page_1) return 'page_1';
+      return sortedStoryPageIds(storyObj)[0] || '';
+    }
+
+    function storedImagePayloadToDataUri(payload) {
+      if (!payload || typeof payload !== 'object') return '';
+      if (payload.type === 'image' && payload.data && payload.mimeType) {
+        return `data:${payload.mimeType};base64,${payload.data}`;
+      }
+      if (payload.type === 'svg' && payload.data) {
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(payload.data)}`;
+      }
+      return '';
+    }
+
+    async function hydrateSetupHistoryLinkImage(linkEl, entry, renderVersion) {
+      if (!linkEl || !entry?.story?.pages || !entry?.imageKey) return;
+      const preview = linkEl.querySelector('.setup-history-preview');
+      const img = linkEl.querySelector('.setup-history-preview-img');
+      if (!preview || !img) return;
+
+      const previewPageId = storyPreviewPageId(entry.story);
+      if (!previewPageId) return;
+
+      const images = await loadStoredStoryImages(entry.story, entry.imageKey, {
+        genre: entry.genre,
+        era: entry.era,
+        archetype: entry.archetype,
+      });
+      if (renderVersion !== setupHistoryRenderVersion || !linkEl.isConnected) return;
+
+      const src = storedImagePayloadToDataUri(images[previewPageId]);
+      if (!src) return;
+
+      img.src = src;
+      img.classList.remove('hidden');
+      preview.classList.add('has-image');
+    }
+
     function savedStoriesFromStorage() {
       const stories = [];
       try {
@@ -3392,6 +3433,7 @@
       const summaryEl = document.getElementById('setup-history-summary');
       const listEl = document.getElementById('setup-history-list');
       if (!historyEl || !summaryEl || !listEl) return;
+      const renderVersion = ++setupHistoryRenderVersion;
 
       const stories = savedStoriesFromStorage();
       historyEl.classList.toggle('hidden', stories.length === 0);
@@ -3416,15 +3458,21 @@
           .map(value => `<span class="setup-history-pill">${esc(value)}</span>`)
           .join('');
         link.innerHTML = `
-          <span class="setup-history-pills">${pills}</span>
-          <strong class="setup-history-title">${esc(displayTitle)}</strong>
-          <span class="setup-history-tagline">${esc(displayTagline)}</span>
+          <span class="setup-history-preview" aria-hidden="true">
+            <img class="setup-history-preview-img hidden" alt="" loading="lazy" decoding="async">
+          </span>
+          <span class="setup-history-body">
+            <span class="setup-history-pills">${pills}</span>
+            <strong class="setup-history-title">${esc(displayTitle)}</strong>
+            <span class="setup-history-tagline">${esc(displayTagline)}</span>
+          </span>
         `;
         link.addEventListener('click', evt => {
           evt.preventDefault();
           void replaySavedStory(entry);
         });
         listEl.appendChild(link);
+        void hydrateSetupHistoryLinkImage(link, entry, renderVersion);
       });
     }
 

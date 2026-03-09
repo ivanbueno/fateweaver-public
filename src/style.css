@@ -834,9 +834,10 @@ body {
 }
 
 .setup-history-link {
-  display: flex;
-  flex-direction: column;
-  gap: 0.34rem;
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 0.58rem;
   text-decoration: none;
   color: rgba(255, 255, 255, 0.86);
   font-family: var(--font-hud);
@@ -844,6 +845,44 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.2);
   transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.setup-history-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  background:
+    radial-gradient(120% 85% at 20% 10%, rgba(255, 255, 255, 0.16), transparent 62%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 56%, rgba(0, 0, 0, 0.32));
+}
+
+.setup-history-preview::after {
+  content: '';
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.2rem;
+  font-family: var(--font-hud);
+  font-size: 0.54rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.setup-history-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.setup-history-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.34rem;
 }
 
 .setup-history-pills {
@@ -2695,6 +2734,8 @@ body {
     padding: 0 0.62rem 0.62rem;
   }
   .setup-history-link {
+    grid-template-columns: 60px minmax(0, 1fr);
+    column-gap: 0.48rem;
     padding: 0.46rem 0.48rem;
   }
   .setup-history-pills {
