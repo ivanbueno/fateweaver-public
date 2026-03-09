@@ -3,12 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fateweaver / AI Visual Novel</title>
+  <title>Fateweaver | AI Visual Novel Generator & Interactive Story Game</title>
+  <meta
+    name="description"
+    content="Create branching stories with Fateweaver, an AI visual novel generator. Choose a genre, era, and character archetype to play a cinematic interactive story with multiple endings."
+  >
+  <meta
+    name="keywords"
+    content="AI visual novel, visual novel generator, interactive story game, AI story generator, choose your own adventure, branching narrative, procedural storytelling, Fateweaver"
+  >
+  <meta name="author" content="Ivan Bueno">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://www.fateweaver.net/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Fateweaver | AI Visual Novel Generator & Interactive Story Game">
+  <meta
+    property="og:description"
+    content="Choose a genre, era, and archetype to generate a cinematic AI-powered visual novel with branching choices and multiple endings."
+  >
+  <meta property="og:url" content="https://www.fateweaver.net/">
+  <meta property="og:site_name" content="Fateweaver">
+  <meta property="og:image" content="https://www.fateweaver.net/images/social-preview.png">
+  <meta property="og:image:alt" content="Fateweaver AI visual novel generator preview">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Fateweaver | AI Visual Novel Generator & Interactive Story Game">
+  <meta
+    name="twitter:description"
+    content="Generate and play AI-powered visual novels with branching choices, cinematic scenes, and multiple endings."
+  >
+  <meta name="twitter:image" content="https://www.fateweaver.net/images/social-preview.png">
   <link rel="icon" type="image/png" href="images/octopus.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Lora:ital,wght@0,400;0,500;1,400;1,500&family=Rajdhani:wght@500;600;700&family=Teko:wght@500;600&display=swap">
   <link rel="stylesheet" href="src/style.css">
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Fateweaver",
+    "url": "https://www.fateweaver.net/",
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Web",
+    "description": "Fateweaver is an AI visual novel generator and interactive story game where players choose a genre, era, and archetype to create branching narratives with multiple endings.",
+    "image": "https://www.fateweaver.net/images/social-preview.png",
+    "author": {
+      "@type": "Person",
+      "name": "Ivan Bueno"
+    }
+  }
+  </script>
 </head>
 
 <body class="genre-noir">
@@ -126,11 +176,14 @@
         <div class="title-ornament">✦</div>
         <div class="game-title-row">
           <div class="game-logo-wrap">
-            <img src="images/octopus.png" alt="" class="game-logo">
+            <img src="images/octopus.png" alt="Fateweaver octopus logo" class="game-logo">
           </div>
           <h1 class="game-title">Fateweaver</h1>
         </div>
-        <p class="game-subtitle">An AI-Woven Visual Novel</p>
+        <p class="game-subtitle">Generate Your Own Adventure</p>
+        <p class="game-description">
+          Build a playable visual novel in seconds. Pick a genre, era, and archetype, then shape the outcome through meaningful choices, branching scenes, and multiple endings.
+        </p>
       </div>
 
       <details id="setup-history" class="setup-history hidden">
