@@ -4314,15 +4314,57 @@
 
     function state_currentId() { return S.currentPageId; }
 
+    function normalizeOutcome(value) {
+      if (typeof value !== 'string') return '';
+      const normalized = value.toLowerCase();
+      return (normalized === 'good' || normalized === 'neutral' || normalized === 'bad') ? normalized : '';
+    }
+
+    function inferOutcomeFromPageId(pageId) {
+      if (typeof pageId !== 'string') return '';
+      if (pageId.includes('_neutral') || pageId.includes('neutral')) return 'neutral';
+      if (pageId.includes('_bad') || pageId.includes('bad')) return 'bad';
+      if (pageId.includes('_good') || pageId.includes('good')) return 'good';
+      return '';
+    }
+
+    function resolveChoiceOutcome(choiceLike, fallbackFromPageId = '') {
+      if (!choiceLike) return '';
+      const choice = (typeof choiceLike === 'string') ? { to: choiceLike } : choiceLike;
+      const fromPageId = (typeof choice.from === 'string' && choice.from) ? choice.from : fallbackFromPageId;
+      const toPageId = (typeof choice.to === 'string' && choice.to)
+        ? choice.to
+        : ((typeof choice.nextPage === 'string' && choice.nextPage) ? choice.nextPage : '');
+
+      const directOutcome = normalizeOutcome(choice.outcome);
+      if (directOutcome) return directOutcome;
+
+      if (fromPageId && toPageId) {
+        const fromPage = S.story?.pages?.[fromPageId];
+        if (Array.isArray(fromPage?.choices)) {
+          const matched = fromPage.choices.find(option => option?.nextPage === toPageId);
+          const mappedOutcome = normalizeOutcome(matched?.outcome);
+          if (mappedOutcome) return mappedOutcome;
+        }
+      }
+
+      return inferOutcomeFromPageId(toPageId) || inferOutcomeFromPageId(fromPageId);
+    }
+
     function makeChoice(nextPageId, outcome) {
       if (!nextPageId) return;
+      const resolvedOutcome = resolveChoiceOutcome({
+        from: S.currentPageId,
+        to: nextPageId,
+        outcome,
+      });
       trackEvent('story_choice_made', gaStoryParams({
         from_page: gaSafe(S.currentPageId, 24),
         to_page: gaSafe(nextPageId, 24),
-        outcome: gaSafe(outcome || 'unknown', 24),
+        outcome: gaSafe(resolvedOutcome || outcome || 'unknown', 24),
         choice_depth: S.choicesMade.length + 1,
       }));
-      S.choicesMade.push({ from: S.currentPageId, to: nextPageId, outcome });
+      S.choicesMade.push({ from: S.currentPageId, to: nextPageId, outcome: resolvedOutcome || null });
       renderPage(nextPageId);
     }
 
@@ -4357,11 +4399,22 @@
     }
 
     function endingOutcomeTally() {
-      const tally = { good: 0, neutral: 0, bad: 0 };
-      (S.choicesMade || []).forEach(choice => {
-        if (choice?.outcome === 'good' || choice?.outcome === 'neutral' || choice?.outcome === 'bad') {
-          tally[choice.outcome] += 1;
+      const tally = { good: 0, neutral: 0, bad: 0, unknown: 0 };
+      let priorPageId = 'page_1';
+      (S.choicesMade || []).forEach(rawChoice => {
+        const choice = (typeof rawChoice === 'string')
+          ? { from: priorPageId, to: rawChoice }
+          : (rawChoice || {});
+        const outcome = resolveChoiceOutcome(choice, priorPageId);
+        if (outcome === 'good' || outcome === 'neutral' || outcome === 'bad') {
+          tally[outcome] += 1;
+        } else {
+          tally.unknown += 1;
         }
+        const toPageId = (typeof choice.to === 'string' && choice.to)
+          ? choice.to
+          : ((typeof choice.nextPage === 'string' && choice.nextPage) ? choice.nextPage : '');
+        if (toPageId) priorPageId = toPageId;
       });
       return tally;
     }
@@ -4390,6 +4443,12 @@
       const meta = gaPageMeta(S.currentPageId || '');
       const path = meta.path || type || 'good';
       const status = endingStatusFor(type);
+      const recapParts = [
+        `${tally.good} ${endingRecapLabel('good')}`,
+        `${tally.neutral} ${endingRecapLabel('neutral')}`,
+        `${tally.bad} ${endingRecapLabel('bad')}`,
+      ];
+      if (tally.unknown > 0) recapParts.push(`${tally.unknown} unresolved`);
       return {
         kicker: status.kicker,
         route: routeLabel(S.genre, S.archetype, path),
@@ -4398,7 +4457,7 @@
         alignment: `${status.alignment} • ${rank}`,
         score,
         rank,
-        recap: `${tally.good} ${endingRecapLabel('good')} • ${tally.neutral} ${endingRecapLabel('neutral')} • ${tally.bad} ${endingRecapLabel('bad')} decisions`,
+        recap: `${recapParts.join(' • ')} decisions`,
       };
     }
 
