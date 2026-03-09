@@ -380,12 +380,28 @@ body {
   text-shadow: 0 0 20px var(--glow-color);
 }
 
-.info-body {
+.seo-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.seo-copy h2 {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-title);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.seo-copy p {
+  margin: 0;
   font-family: var(--font-body);
-  font-style: italic;
   font-size: 0.95rem;
   color: var(--color-text);
-  line-height: 1.82;
+  line-height: 1.7;
   opacity: 0.88;
 }
 
