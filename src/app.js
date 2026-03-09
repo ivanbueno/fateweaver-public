@@ -500,6 +500,7 @@
       currentPageId: 'page_1',
       choicesMade:   [],
       imageCache:    {},     // in-memory
+      storySessionId: 0,
       imageMode:     'lambda', // 'lambda' | 'terrain'
       musicSource:   DEFAULT_BACKGROUND_MUSIC_SOURCE, // 'lambda' | 'local'
       hudCollapsed:  false,
@@ -2739,7 +2740,7 @@
       { x: 90, size: 3, dur: 14.1, delay: -11.6 },
       { x: 95, size: 2, dur: 12.9, delay: -0.7 },
     ];
-    const pending = new Set(); // pages with in-flight image requests
+    const pending = new Set(); // session-scoped in-flight image request keys: `${storySessionId}:${pageId}`
     let endingShareResetTid = null;
     const STORY_KEY_PREFIX = 'visualnovel_story_';
     const PROGRESS_KEY_PREFIX = 'visualnovel_progress_';
@@ -2849,8 +2850,23 @@
     function loadProgress() { return lsGet(progressKey()); }
 
     // Images are cached in-memory only (S.imageCache) — never persisted to localStorage
-    function cacheImage(pageId, data) { S.imageCache[pageId] = data; }
-    function getCachedImage(pageId)   { return S.imageCache[pageId] || null; }
+    function imageCacheKey(pageId, storySessionId = S.storySessionId) {
+      return `${storySessionId}:${pageId}`;
+    }
+    function cacheImage(pageId, data, storySessionId = S.storySessionId) {
+      S.imageCache[imageCacheKey(pageId, storySessionId)] = data;
+    }
+    function getCachedImage(pageId, storySessionId = S.storySessionId) {
+      return S.imageCache[imageCacheKey(pageId, storySessionId)] || null;
+    }
+    function isImagePending(pageId, storySessionId = S.storySessionId) {
+      return pending.has(imageCacheKey(pageId, storySessionId));
+    }
+    function resetImageState() {
+      S.imageCache = {};
+      pending.clear();
+      S.storySessionId += 1;
+    }
 
     function storyPreviewLead(storedStory) {
       const pages = storedStory?.pages || {};
@@ -3026,7 +3042,7 @@
       S.story = storyFromStoredRecord(entry.story);
       S.currentPageId = targetPage;
       S.choicesMade = targetChoices;
-      S.imageCache = {};
+      resetImageState();
       S.storyRunStartedAt = targetStartedAt;
 
       saveStory(S.story);
@@ -4018,6 +4034,7 @@
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = prog?.currentPage || 'page_1';
           S.choicesMade   = prog?.choicesMade  || [];
+          resetImageState();
           S.storyRunStartedAt = Number(prog?.startedAt) || Date.now();
           showScreen('game');
           renderPage(S.currentPageId);
@@ -4031,6 +4048,7 @@
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = 'page_1';
           S.choicesMade = [];
+          resetImageState();
           S.storyRunStartedAt = Date.now();
           showScreen('game');
           renderPage('page_1');
@@ -4042,7 +4060,7 @@
         } else {
           localStorage.removeItem(storyKey());
           localStorage.removeItem(progressKey());
-          S.imageCache = {};
+          resetImageState();
           S.storyRunStartedAt = 0;
           renderSetupHistory();
           trackEvent('saved_story_discarded', gaStoryParams());
@@ -4070,6 +4088,7 @@
         };
         S.currentPageId = 'page_1';
         S.choicesMade   = [];
+        resetImageState();
         S.storyRunStartedAt = Date.now();
         saveStory(S.story); // saves story without image data
         renderSetupHistory();
@@ -4362,7 +4381,7 @@
 
       // While the user reads this page, generate images for the next pages in the background
       (page.choices || []).forEach(c => {
-        if (c.nextPage && !getCachedImage(c.nextPage) && !pending.has(c.nextPage)) {
+        if (c.nextPage && !getCachedImage(c.nextPage) && !isImagePending(c.nextPage)) {
           const nextPage = S.story?.pages?.[c.nextPage];
           if (nextPage) loadImage(c.nextPage, nextPage, 'prefetch').catch(() => {});
         }
@@ -4715,8 +4734,10 @@
 
     /* ─── IMAGE LOADING ────────────────────────────────────── */
     async function loadImage(pageId, page, source = 'current') {
-      if (!page?.imagePrompt || pending.has(pageId) || getCachedImage(pageId)) return;
-      pending.add(pageId);
+      const storySessionId = S.storySessionId;
+      const pendingKey = imageCacheKey(pageId, storySessionId);
+      if (!page?.imagePrompt || pending.has(pendingKey) || getCachedImage(pageId, storySessionId)) return;
+      pending.add(pendingKey);
       trackEvent('image_request_started', gaStoryParams({
         page_id: gaSafe(pageId, 24),
         source: gaSafe(source, 16),
@@ -4755,7 +4776,8 @@
             }));
           }
         }
-        cacheImage(pageId, data);
+        if (storySessionId !== S.storySessionId) return;
+        cacheImage(pageId, data, storySessionId);
         trackEvent('image_request_completed', gaStoryParams({
           page_id: gaSafe(pageId, 24),
           source: gaSafe(source, 16),
@@ -4763,7 +4785,9 @@
           provider: gaSafe(provider, 16),
           fallback_used: fallbackUsed,
         }));
-        if (S.currentPageId === pageId) displayImage(data, pageId, source);
+        if (S.currentPageId === pageId && storySessionId === S.storySessionId) {
+          displayImage(data, pageId, source);
+        }
       } catch(e) {
         console.warn('Image gen failed:', pageId, e.message);
         trackEvent('image_request_failed', gaStoryParams({
@@ -4773,7 +4797,7 @@
           error_message: gaSafe(e?.message || e),
         }));
       } finally {
-        pending.delete(pageId);
+        pending.delete(pendingKey);
       }
     }
 
@@ -4976,7 +5000,8 @@
         }
         localStorage.removeItem(progressKey());
         renderSetupHistory();
-        S.story = null; S.imageCache = {};
+        S.story = null;
+        resetImageState();
         S.currentPageId = 'page_1'; S.choicesMade = [];
         S.storyRunStartedAt = 0;
         S.lastEndingType = 'good';
