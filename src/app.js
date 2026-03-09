@@ -155,6 +155,78 @@
       'The Survivor':  'The last thread of will that refuses to break is being pulled',
       'The Rebel':     'The fire that burns the old world down is being lit',
     };
+    const LOAD_ERROR_POETRY = {
+      default: {
+        key: 'default',
+        line1: 'The loom skipped a beat and dropped the thread.',
+        line2: 'No destiny is lost. We can weave it again.',
+      },
+      noir: {
+        key: 'noir',
+        line1: 'Rain took the clue before it reached the file.',
+        line2: 'Light one more match. The case can still reopen.',
+      },
+      horror: {
+        key: 'horror',
+        line1: 'The candle buckled, and shadows rushed the room.',
+        line2: 'Hold the line. The ward can be traced again.',
+      },
+      space: {
+        key: 'space',
+        line1: 'A solar flare bent the signal off the starlane.',
+        line2: 'Recalibrate the course. The stars still answer.',
+      },
+      samurai: {
+        key: 'samurai',
+        line1: 'Steel met wind, and the vow paused mid-strike.',
+        line2: 'Bow once. Rise again. The path remains.',
+      },
+      cyberpunk: {
+        key: 'cyberpunk',
+        line1: 'Static flooded the feed and ghosted the build.',
+        line2: 'Patch the breach. Run it back through neon.',
+      },
+      drama: {
+        key: 'drama',
+        line1: 'The curtain dropped between two unfinished lines.',
+        line2: 'Take your mark again. The scene still breathes.',
+      },
+      romantic: {
+        key: 'romantic',
+        line1: 'Rain blurred the letter before it found your hands.',
+        line2: 'Write once more. Some hearts arrive late.',
+      },
+      adventure: {
+        key: 'adventure',
+        line1: 'The map went pale where the compass should sing.',
+        line2: 'Set your boots again. The road is still there.',
+      },
+      scifi: {
+        key: 'scifi',
+        line1: 'Chronometers drifted and the jump gate blinked out.',
+        line2: 'Realign the vectors. The future remains reachable.',
+      },
+      western: {
+        key: 'western',
+        line1: 'Dust swallowed the trail before dawn could name it.',
+        line2: 'Saddle up again. The horizon still waits.',
+      },
+      thriller: {
+        key: 'thriller',
+        line1: 'The line went dead one breath before the passphrase.',
+        line2: 'Reconnect and move. The mission is not burned.',
+      },
+      resistance: {
+        key: 'resistance',
+        line1: 'The signal was jammed, but the banners held.',
+        line2: 'Broadcast again. The uprising is listening.',
+      },
+      gothic: {
+        key: 'gothic',
+        line1: 'The chapel bell cracked in the middle of prayer.',
+        line2: 'Kneel and rise. The old oath still remembers.',
+      },
+    };
     const ENDING_COPY = {
       default: {
         good:    { badge: 'DAWN ASCENDANT',            sub: 'Through trial and sacrifice, you stepped into a brighter fate.' },
@@ -3987,6 +4059,10 @@
         'Running continuity sweep before deployment.',
       ];
     }
+    function loadErrorPoetryForGenre(genre) {
+      const key = (GENRE_CFG[genre] || {}).key || 'default';
+      return LOAD_ERROR_POETRY[key] || LOAD_ERROR_POETRY.default;
+    }
     function loadingTargetPercent(elapsedSec) {
       for (let i = 1; i < LOADING_CURVE.length; i++) {
         const [t0, p0] = LOADING_CURVE[i - 1];
@@ -4056,13 +4132,24 @@
       await new Promise(resolve => setTimeout(resolve, 420));
     }
     function showLoadError(msg) {
+      const safeMsg = msg || 'Story generation failed.';
+      const poetry = loadErrorPoetryForGenre(S.genre);
       document.getElementById('loading-wrap').innerHTML = `
         <div class="error-wrap">
-          <p class="error-msg">⚠ ${esc(msg)}</p>
-          <button class="btn-primary" onclick="showScreen('setup')">Back to Setup</button>
+          <p class="error-kicker">Signal Interrupted</p>
+          <p class="error-poem">${esc(poetry.line1)}</p>
+          <p class="error-poem-sub">${esc(poetry.line2)}</p>
+          <p class="error-msg">⚠ ${esc(safeMsg)}</p>
+          <div class="error-actions">
+            <button class="btn-primary" onclick="beginStory()">Regenerate Again</button>
+            <button class="btn-secondary" onclick="showScreen('setup')">Back to Setup</button>
+          </div>
         </div>
       `;
-      trackEvent('loading_error_shown', gaStoryParams({ error_message: gaSafe(msg) }));
+      trackEvent('loading_error_shown', gaStoryParams({
+        error_message: gaSafe(safeMsg),
+        poetry_key: gaSafe(poetry.key, 24),
+      }));
     }
     function startTimer() {
       loadingStartedAt = performance.now();

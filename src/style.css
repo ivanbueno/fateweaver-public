@@ -1389,7 +1389,32 @@ body {
 }
 
 .error-wrap { display: flex; flex-direction: column; align-items: center; gap: 1.2rem; }
+.error-kicker {
+  margin: 0;
+  font-family: var(--font-signal);
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--loading-text-muted);
+}
+.error-poem,
+.error-poem-sub {
+  margin: 0;
+  max-width: 560px;
+  text-align: center;
+  color: var(--loading-text-strong);
+  font-family: var(--font-body);
+  line-height: 1.65;
+}
+.error-poem {
+  font-size: 1.08rem;
+}
+.error-poem-sub {
+  font-size: 0.95rem;
+  color: var(--loading-text-muted);
+}
 .error-msg {
+  margin: 0;
   color: #e08080;
   font-size: 0.9rem;
   font-family: var(--font-body);
@@ -1397,6 +1422,12 @@ body {
   max-width: 420px;
   text-align: center;
   line-height: 1.65;
+}
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem;
 }
 
 /* ══════════════════════════════════════════════════════════════
