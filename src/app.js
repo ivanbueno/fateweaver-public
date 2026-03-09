@@ -3625,7 +3625,7 @@
       'Espionage Thriller': ['Double Agent in a Three-Piece Suit.ogg', 'Midnight Cable.ogg'],
       'Forbidden Romance': ['Under Glass Skies.ogg', 'Unfinished Spell.ogg'],
       'Gothic Horror': ['Cathedral of the Unsaid.ogg', 'Victorian Sepulcher.ogg'],
-      'Heist': ['Midnight Perfect Crime.ogg', 'Midnight Velvet Job.ogg'],
+      'Heist': ['Midnight Perfect Crime.ogg', 'Midnight Slide.ogg', 'Midnight Velvet Job.ogg'],
       'High Fantasy': ['Crown of Starlight.ogg', 'Crown of the Sky.ogg'],
       'Historical Drama': ['Crown of Old Rooms.ogg', 'Regal Echoes of Time.ogg'],
       'Lost Civilization Adventure': ['Into the Amber Horizon.ogg', 'Secrets In The Stone.ogg'],
