@@ -519,6 +519,11 @@
       sessionId: `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       storyStartedAt: 0,
     };
+    const RESUME_DECISION = Object.freeze({
+      RESUME: 'resume',
+      RESTART: 'restart',
+      NEW: 'new',
+    });
     let resumeDecisionResolver = null;
     let resumeDecisionFocusEl = null;
     let deleteStoriesDecisionResolver = null;
@@ -2991,13 +2996,27 @@
       const canResume = hasChoices || hasCheckpoint;
 
       if (canResume) {
-        const shouldResume = await promptResumeDecision(entry.story, prog);
-        if (shouldResume) {
+        const resumeDecision = await promptResumeDecision(entry.story, prog);
+        if (resumeDecision === RESUME_DECISION.RESUME) {
           const candidatePage = typeof prog?.currentPage === 'string' ? prog.currentPage : 'page_1';
           targetPage = Object.prototype.hasOwnProperty.call(pages, candidatePage) ? candidatePage : 'page_1';
           targetChoices = Array.isArray(prog?.choicesMade) ? prog.choicesMade : [];
           targetStartedAt = Number(prog?.startedAt) || Date.now();
           clearProgress = false;
+        } else if (resumeDecision === RESUME_DECISION.RESTART) {
+          targetPage = 'page_1';
+          targetChoices = [];
+          targetStartedAt = Date.now();
+          clearProgress = false;
+        } else if (resumeDecision === RESUME_DECISION.NEW) {
+          S.genre = entry.genre;
+          S.era = entry.era;
+          S.archetype = entry.archetype;
+          try { localStorage.removeItem(entry.key); } catch {}
+          try { localStorage.removeItem(entry.progressKey); } catch {}
+          renderSetupHistory();
+          await beginStory();
+          return;
         }
       }
 
@@ -3155,7 +3174,11 @@
       const copyEl = document.getElementById('resume-copy');
       const resumeBtn = document.getElementById('resume-btn');
       if (!overlay || !checkpointEl || !decisionsEl || !copyEl) {
-        return Promise.resolve(confirm('A saved story exists for this combination.\n\nContinue where you left off?'));
+        return Promise.resolve(
+          confirm('A saved story exists for this combination.\n\nContinue where you left off?')
+            ? RESUME_DECISION.RESUME
+            : RESUME_DECISION.RESTART,
+        );
       }
 
       const pageId = progress?.currentPage || 'page_1';
@@ -3171,7 +3194,7 @@
       if (resumeDecisionResolver) {
         const resolvePrev = resumeDecisionResolver;
         resumeDecisionResolver = null;
-        resolvePrev(false);
+        resolvePrev(RESUME_DECISION.NEW);
       }
 
       overlay.classList.remove('hidden');
@@ -3183,7 +3206,17 @@
       });
     }
 
-    function handleResumeDecision(shouldResume) {
+    function normalizeResumeDecision(value) {
+      if (value === true) return RESUME_DECISION.RESUME;
+      if (value === false) return RESUME_DECISION.NEW;
+      const normalized = String(value || '').toLowerCase();
+      if (normalized === RESUME_DECISION.RESUME) return RESUME_DECISION.RESUME;
+      if (normalized === RESUME_DECISION.RESTART) return RESUME_DECISION.RESTART;
+      if (normalized === RESUME_DECISION.NEW) return RESUME_DECISION.NEW;
+      return RESUME_DECISION.NEW;
+    }
+
+    function handleResumeDecision(decision) {
       const overlay = document.getElementById('resume-overlay');
       if (overlay) overlay.classList.add('hidden');
 
@@ -3195,7 +3228,7 @@
       }
       resumeDecisionFocusEl = null;
 
-      if (typeof resolve === 'function') resolve(Boolean(shouldResume));
+      if (typeof resolve === 'function') resolve(normalizeResumeDecision(decision));
     }
 
     function hudIconForBeat(beat) {
@@ -3975,11 +4008,13 @@
       const existing = loadStoredStory();
       if (existing?.pages) {
         const prog = loadProgress();
-        const shouldResume = await promptResumeDecision(existing, prog);
+        const resumeDecision = await promptResumeDecision(existing, prog);
+        const shouldResume = resumeDecision === RESUME_DECISION.RESUME;
         trackEvent('story_resume_prompted', gaStoryParams({
           resumed: Number(shouldResume),
+          resume_decision: resumeDecision,
         }));
-        if (shouldResume) {
+        if (resumeDecision === RESUME_DECISION.RESUME) {
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = prog?.currentPage || 'page_1';
           S.choicesMade   = prog?.choicesMade  || [];
@@ -3990,6 +4025,18 @@
           trackEvent('story_resumed', gaStoryParams({
             page_id: gaSafe(S.currentPageId, 24),
             prior_choices: S.choicesMade.length,
+          }));
+          return;
+        } else if (resumeDecision === RESUME_DECISION.RESTART) {
+          S.story = storyFromStoredRecord(existing);
+          S.currentPageId = 'page_1';
+          S.choicesMade = [];
+          S.storyRunStartedAt = Date.now();
+          showScreen('game');
+          renderPage('page_1');
+          startBackgroundMusic(); // fire-and-forget
+          trackEvent('story_restart_from_beginning', gaStoryParams({
+            page_id: 'page_1',
           }));
           return;
         } else {
@@ -4991,7 +5038,7 @@
         const resumeOverlay = document.getElementById('resume-overlay');
         if (!resumeOverlay || resumeOverlay.classList.contains('hidden')) return;
         evt.preventDefault();
-        handleResumeDecision(false);
+        handleResumeDecision(RESUME_DECISION.RESTART);
       });
       showScreen('setup');
       renderSetupHistory();

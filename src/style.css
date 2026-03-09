@@ -572,6 +572,13 @@ body {
 .resume-actions .btn-primary {
   flex: 1;
 }
+#resume-overlay .resume-actions {
+  flex-direction: column;
+}
+#resume-overlay .resume-actions .btn-primary,
+#resume-overlay .resume-actions .btn-secondary {
+  width: 100%;
+}
 
 /* ══════════════════════════════════════════════════════════════
    SETUP SCREEN
