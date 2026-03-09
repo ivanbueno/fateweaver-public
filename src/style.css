@@ -1594,8 +1594,8 @@ body {
   box-shadow:
     0 14px 28px rgba(0, 0, 0, 0.28),
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px) saturate(120%);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(3px) saturate(120%);
+  -webkit-backdrop-filter: blur(3px) saturate(120%);
   pointer-events: none;
   animation: storyTitlePlateIn 0.5s cubic-bezier(0.2, 0.8, 0.24, 1);
 }
@@ -1877,12 +1877,12 @@ body {
   scrollbar-width: none;
   border: 1px solid rgba(255, 255, 255, 0.16);
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
-  background: linear-gradient(155deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.78));
+  background: linear-gradient(155deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.38));
   box-shadow:
     0 26px 58px rgba(0, 0, 0, 0.5),
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(18px) saturate(120%);
-  -webkit-backdrop-filter: blur(18px) saturate(120%);
+  backdrop-filter: blur(3px) saturate(120%);
+  -webkit-backdrop-filter: blur(3px) saturate(120%);
 }
 .story-content::-webkit-scrollbar { display: none; }
 
