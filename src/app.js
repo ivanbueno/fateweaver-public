@@ -496,7 +496,7 @@
       genre:         null,
       era:           null,
       archetype:     null,
-      story:         null,   // { pages: { page_1: {...}, ... } }
+      story:         null,   // { title, tagline, pages: { page_1: {...}, ... } }
       currentPageId: 'page_1',
       choicesMade:   [],
       imageCache:    {},     // in-memory
@@ -2751,6 +2751,24 @@
       try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
     }
 
+    function normalizeStoryText(value, maxLen = 220) {
+      if (typeof value !== 'string') return '';
+      return value.replace(/\s+/g, ' ').trim().slice(0, maxLen);
+    }
+
+    function storyFrontMatterForStorage(storyObj) {
+      return {
+        title: normalizeStoryText(storyObj?.title, 120),
+        tagline: normalizeStoryText(storyObj?.tagline, 220),
+      };
+    }
+
+    function storyFromStoredRecord(storedStory) {
+      const pages = (storedStory?.pages && typeof storedStory.pages === 'object') ? storedStory.pages : {};
+      const front = storyFrontMatterForStorage(storedStory);
+      return { title: front.title, tagline: front.tagline, pages };
+    }
+
     function storyPagesForStorage(storyObj) {
       // Strip inline image data before saving (images are in-memory only, not persisted)
       const pages = {};
@@ -2764,7 +2782,13 @@
     function saveStory(storyObj) {
       if (!storyObj?.pages) return;
       const pages = storyPagesForStorage(storyObj);
-      lsSet(storyKey(), { meta: { genre: S.genre, era: S.era, archetype: S.archetype, generatedAt: Date.now() }, pages });
+      const front = storyFrontMatterForStorage(storyObj);
+      lsSet(storyKey(), {
+        meta: { genre: S.genre, era: S.era, archetype: S.archetype, generatedAt: Date.now() },
+        title: front.title,
+        tagline: front.tagline,
+        pages,
+      });
     }
     function loadStoredStory() { return lsGet(storyKey()); }
 
@@ -2790,6 +2814,7 @@
       const key = storyKey();
       const active = loadStoredStory();
       const generatedAt = Number(active?.meta?.generatedAt) || now;
+      const front = storyFrontMatterForStorage(S.story);
       removeLegacyCompletedStoriesForSelection(S.genre, S.era, S.archetype);
       try { localStorage.removeItem(key); } catch {}
 
@@ -2802,6 +2827,8 @@
           completedAt: now,
           endingType: gaSafe(endingType || 'good', 16),
         },
+        title: front.title,
+        tagline: front.tagline,
         pages: storyPagesForStorage(S.story),
       });
     }
@@ -2977,7 +3004,7 @@
       S.genre = entry.genre;
       S.era = entry.era;
       S.archetype = entry.archetype;
-      S.story = { pages };
+      S.story = storyFromStoredRecord(entry.story);
       S.currentPageId = targetPage;
       S.choicesMade = targetChoices;
       S.imageCache = {};
@@ -3020,9 +3047,17 @@
         const link = document.createElement('a');
         link.href = '#';
         link.className = 'setup-history-link';
-        const title = `${entry.genre} / ${entry.era} / ${entry.archetype}`;
-        const preview = storyPreviewLead(entry.story);
-        link.innerHTML = `<strong>${esc(title)}</strong><span>${esc(preview)}</span>`;
+        const front = storyFrontMatterForStorage(entry.story);
+        const displayTitle = front.title || 'Untitled Chronicle';
+        const displayTagline = front.tagline || storyPreviewLead(entry.story);
+        const pills = [entry.genre, entry.era, entry.archetype]
+          .map(value => `<span class="setup-history-pill">${esc(value)}</span>`)
+          .join('');
+        link.innerHTML = `
+          <span class="setup-history-pills">${pills}</span>
+          <strong class="setup-history-title">${esc(displayTitle)}</strong>
+          <span class="setup-history-tagline">${esc(displayTagline)}</span>
+        `;
         link.addEventListener('click', evt => {
           evt.preventDefault();
           void replaySavedStory(entry);
@@ -3945,7 +3980,7 @@
           resumed: Number(shouldResume),
         }));
         if (shouldResume) {
-          S.story = { pages: existing.pages };
+          S.story = storyFromStoredRecord(existing);
           S.currentPageId = prog?.currentPage || 'page_1';
           S.choicesMade   = prog?.choicesMade  || [];
           S.storyRunStartedAt = Number(prog?.startedAt) || Date.now();
@@ -3981,11 +4016,15 @@
         if (!result.success) throw new Error(result.error || 'Story generation failed.');
         stopTimer();
         await completeLoading();
-        S.story         = result.story;
+        S.story = {
+          ...result.story,
+          title: normalizeStoryText(result.story?.title, 120),
+          tagline: normalizeStoryText(result.story?.tagline, 220),
+        };
         S.currentPageId = 'page_1';
         S.choicesMade   = [];
         S.storyRunStartedAt = Date.now();
-        saveStory(result.story); // saves story without image data
+        saveStory(S.story); // saves story without image data
         renderSetupHistory();
         showScreen('game');
         renderPage('page_1');
@@ -4198,6 +4237,33 @@
       clearInterval(intelInterval); intelInterval = null;
     }
 
+    function updatePageOneTitleOverlay(pageId) {
+      const overlay = document.getElementById('story-title-overlay');
+      const titleEl = document.getElementById('story-title-text');
+      const taglineEl = document.getElementById('story-tagline-text');
+      if (!overlay || !titleEl || !taglineEl) return;
+
+      if (pageId !== 'page_1') {
+        overlay.classList.add('hidden');
+        titleEl.textContent = '';
+        taglineEl.textContent = '';
+        return;
+      }
+
+      const title = normalizeStoryText(S.story?.title, 120);
+      const tagline = normalizeStoryText(S.story?.tagline, 220);
+      if (!title && !tagline) {
+        overlay.classList.add('hidden');
+        titleEl.textContent = '';
+        taglineEl.textContent = '';
+        return;
+      }
+
+      titleEl.textContent = title || 'Untitled Chronicle';
+      taglineEl.textContent = tagline;
+      overlay.classList.remove('hidden');
+    }
+
     /* ─── GAME: RENDER PAGE ────────────────────────────────── */
     function renderPage(pageId) {
       const page = S.story?.pages?.[pageId];
@@ -4220,6 +4286,7 @@
         choice_count: (page.choices || []).length,
       }));
       updateGameHud(meta);
+      updatePageOneTitleOverlay(pageId);
 
       // Story text (fade transition)
       const textEl = document.getElementById('story-text');
