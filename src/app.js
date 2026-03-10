@@ -2710,6 +2710,10 @@
     let loadingStartedAt = 0;
     let loadingDisplayPercent = 0;
     let loadingIntelLines = [];
+    let loadingFirstImageTracked = false;
+    let loadingFirstImageReady = false;
+    const LOADING_FIRST_IMAGE_BONUS = 2;
+    const LOADING_PROGRESS_EXTRA_SECONDS = 12;
     const LOADING_VERBS = [
       'Weaving', 'Spinning', 'Conjuring', 'Shaping', 'Forging',
       'Summoning', 'Unfolding', 'Scribing', 'Threading', 'Binding',
@@ -4604,8 +4608,6 @@
         trackEvent('story_generation_started', gaStoryParams());
         const result = await callLambda({ action: 'generateStory', genre: S.genre, era: S.era, archetype: S.archetype });
         if (!result.success) throw new Error(result.error || 'Story generation failed.');
-        stopTimer();
-        await completeLoading();
         S.story = {
           ...result.story,
           title: normalizeStoryText(result.story?.title, 120),
@@ -4614,6 +4616,23 @@
         S.currentPageId = 'page_1';
         S.choicesMade   = [];
         resetImageState();
+        const pageOne = S.story?.pages?.page_1;
+        loadingFirstImageTracked = Boolean(pageOne?.imagePrompt);
+        loadingFirstImageReady = !loadingFirstImageTracked;
+        if (loadingFirstImageTracked && !getCachedImage('page_1') && !isImagePending('page_1')) {
+          void loadImage('page_1', pageOne, 'build')
+            .catch(() => {})
+            .finally(() => {
+              loadingFirstImageReady = true;
+            });
+        } else {
+          loadingFirstImageReady = true;
+        }
+        if (LOADING_PROGRESS_EXTRA_SECONDS > 0) {
+          await new Promise(resolve => setTimeout(resolve, LOADING_PROGRESS_EXTRA_SECONDS * 1000));
+        }
+        stopTimer();
+        await completeLoading();
         S.storyRunStartedAt = Date.now();
         saveStory(S.story); // story JSON + any cached scene images (stored separately)
         renderSetupHistory();
@@ -4639,6 +4658,8 @@
       loadingIntelLines = loadingIntelForContext();
       intelIdx = 0;
       loadingDisplayPercent = 0;
+      loadingFirstImageTracked = false;
+      loadingFirstImageReady = false;
       const particles = LOADING_PARTICLES.map(p => (
         `<span class="loading-particle" style="--x:${p.x}%;--size:${p.size}px;--dur:${p.dur}s;--delay:${p.delay}s;"></span>`
       )).join('');
@@ -4694,16 +4715,26 @@
       return LOAD_ERROR_POETRY[key] || LOAD_ERROR_POETRY.default;
     }
     function loadingTargetPercent(elapsedSec) {
+      const baseDurationSec = LOADING_CURVE[LOADING_CURVE.length - 1]?.[0] || 0;
+      const stretchedDurationSec = baseDurationSec + LOADING_PROGRESS_EXTRA_SECONDS;
+      const curveElapsedSec = (baseDurationSec > 0 && stretchedDurationSec > 0)
+        ? (Math.max(0, elapsedSec) * baseDurationSec) / stretchedDurationSec
+        : Math.max(0, elapsedSec);
+      let target = LOADING_CURVE[LOADING_CURVE.length - 1][1];
       for (let i = 1; i < LOADING_CURVE.length; i++) {
         const [t0, p0] = LOADING_CURVE[i - 1];
         const [t1, p1] = LOADING_CURVE[i];
-        if (elapsedSec <= t1) {
+        if (curveElapsedSec <= t1) {
           const span = t1 - t0 || 1;
-          const t = (elapsedSec - t0) / span;
-          return p0 + (p1 - p0) * t;
+          const t = (curveElapsedSec - t0) / span;
+          target = p0 + (p1 - p0) * t;
+          break;
         }
       }
-      return LOADING_CURVE[LOADING_CURVE.length - 1][1];
+      if (loadingFirstImageTracked && loadingFirstImageReady) {
+        target += LOADING_FIRST_IMAGE_BONUS;
+      }
+      return Math.min(99, target);
     }
     function formatLoadTime(elapsedSec) {
       const total = Math.max(0, Math.floor(elapsedSec));
