@@ -2430,7 +2430,7 @@ body {
   border-color: rgba(90, 48, 24, 0.28);
 }
 .genre-samurai .story-content {
-  background: linear-gradient(155deg, rgba(252, 246, 236, 0.72), rgba(239, 227, 206, 0.84));
+  background: linear-gradient(155deg, rgba(252, 246, 236, 0.22), rgba(239, 227, 206, 0.34));
   border-color: rgba(90, 48, 24, 0.3);
   box-shadow:
     0 24px 48px rgba(20, 10, 4, 0.24),
