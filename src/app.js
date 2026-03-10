@@ -3848,7 +3848,12 @@
         evt.preventDefault();
         evt.stopPropagation();
       }
-      const preset = ROLL_DICE_PRESETS[Math.floor(Math.random() * ROLL_DICE_PRESETS.length)];
+      const currentGenreMatchesPreset = preset =>
+        S.genre
+        && preset.genre === S.genre;
+      const selectablePresets = ROLL_DICE_PRESETS.filter(preset => !currentGenreMatchesPreset(preset));
+      const presetPool = selectablePresets.length ? selectablePresets : ROLL_DICE_PRESETS;
+      const preset = presetPool[Math.floor(Math.random() * presetPool.length)];
       const pickedGenre = selectSetupOption('genre-grid', preset.genre);
       const pickedEra = selectSetupOption('era-grid', preset.era);
       const pickedArchetype = selectSetupOption('archetype-grid', preset.archetype);
