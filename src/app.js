@@ -81,6 +81,16 @@
       { genre: 'Political Thriller', era: 'Cold War (1980s)',               archetype: 'The Strategist' },
       { genre: 'Survival Horror',    era: 'Near Future (2080–2100)',        archetype: 'The Survivor' },
       { genre: 'Mythic Adventure',   era: 'Ancient World (1200–500 BCE)',   archetype: 'The Oracle' },
+      { genre: 'Urban Fantasy',      era: 'Contemporary (2020s)',           archetype: 'The Detective' },
+      { genre: 'Dark Fantasy',       era: 'Early Medieval (900–1200)',      archetype: 'The Huntress' },
+      { genre: 'Espionage Thriller', era: 'World War Era (1940s)',          archetype: 'The Soldier' },
+      { genre: 'Military Sci-Fi',    era: 'Near Future (2080–2100)',        archetype: 'The Strategist' },
+      { genre: 'Superhero Saga',     era: 'Contemporary (2020s)',           archetype: 'The Rebel' },
+      { genre: 'Supernatural Mystery', era: 'Victorian Era (1880s)',        archetype: 'The Oracle' },
+      { genre: 'Western Frontier',   era: 'Age of Sail (1700s)',            archetype: 'The Outlaw' },
+      { genre: 'Steampunk Intrigue', era: 'Industrial Revolution (1840s)',  archetype: 'The Creator' },
+      { genre: 'Lost Civilization Adventure', era: 'Ancient World (1200–500 BCE)', archetype: 'The Explorer' },
+      { genre: 'Court Intrigue',     era: 'High Medieval (1300s)',          archetype: 'The Queen' },
     ];
     const BEAT_NAMES = ['You', 'Need', 'Go', 'Search', 'Find', 'Pay', 'Return', 'Change'];
     const BEAT_ICONS = ['◎', '✦', '➤', '⌕', '◇', '✕', '↺', '✧'];
