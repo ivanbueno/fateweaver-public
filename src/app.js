@@ -609,6 +609,7 @@
         archetype: gaSafe(S.archetype || 'none', 48),
         image_mode: gaSafe(S.imageMode || 'none', 16),
         music_source: gaSafe(S.musicSource || 'none', 16),
+        story_session_id: Number(S.storySessionId || 0),
         ...extra,
       };
     }
@@ -4897,7 +4898,7 @@
       trackEvent('story_page_viewed', gaStoryParams({
         page_id: safePageId,
         beat: meta.beat,
-        path: meta.path,
+        story_path: meta.path,
         choice_count: (page.choices || []).length,
       }));
       trackPageView(`/story/${safePageId}`, `Fateweaver - ${resumeCheckpointLabel(pageId)}`, gaStoryParams({
