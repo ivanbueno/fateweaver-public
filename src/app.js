@@ -70,6 +70,18 @@
       'The Innocent',  'The Jester',     'The Drifter',
       'The Artist',    'The Aristocrat', 'The Pilot',
     ];
+    const ROLL_DICE_PRESETS = [
+      { genre: 'High Fantasy',       era: 'High Medieval (1300s)',          archetype: 'The Hero' },
+      { genre: 'Cyberpunk',          era: 'Near Future (2080–2100)',        archetype: 'The Hacker' },
+      { genre: 'Space Opera',        era: 'Deep Future (3000+)',            archetype: 'The Pilot' },
+      { genre: 'Noir Mystery',       era: 'Postwar Boom (1950s)',           archetype: 'The Detective' },
+      { genre: 'Gothic Horror',      era: 'Victorian Era (1880s)',          archetype: 'The Sorceress' },
+      { genre: 'Samurai Epic',       era: 'Feudal Japan (1600s)',           archetype: 'The Ronin' },
+      { genre: 'Forbidden Romance',  era: 'Belle Époque (1900s)',           archetype: 'The Aristocrat' },
+      { genre: 'Political Thriller', era: 'Cold War (1980s)',               archetype: 'The Strategist' },
+      { genre: 'Survival Horror',    era: 'Near Future (2080–2100)',        archetype: 'The Survivor' },
+      { genre: 'Mythic Adventure',   era: 'Ancient World (1200–500 BCE)',   archetype: 'The Oracle' },
+    ];
     const BEAT_NAMES = ['You', 'Need', 'Go', 'Search', 'Find', 'Pay', 'Return', 'Change'];
     const BEAT_ICONS = ['◎', '✦', '➤', '⌕', '◇', '✕', '↺', '✧'];
     const ROMAN_BEATS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
@@ -3799,6 +3811,49 @@
     }
 
     /* ─── SETUP SCREEN ─────────────────────────────────────── */
+    function optionButtonForLabel(gridId, label) {
+      const grid = document.getElementById(gridId);
+      if (!grid) return null;
+      const match = () => Array.from(grid.querySelectorAll('.opt:not(.opt-more)'))
+        .find(btn => btn.textContent === label) || null;
+      let btn = match();
+      if (btn) return btn;
+      const moreBtn = grid.querySelector('.opt-more');
+      if (moreBtn) {
+        moreBtn.click();
+        btn = match();
+      }
+      return btn;
+    }
+
+    function selectSetupOption(gridId, label) {
+      const btn = optionButtonForLabel(gridId, label);
+      if (!btn) return false;
+      btn.click();
+      return true;
+    }
+
+    function rollTheDice(evt) {
+      if (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+      }
+      const preset = ROLL_DICE_PRESETS[Math.floor(Math.random() * ROLL_DICE_PRESETS.length)];
+      const pickedGenre = selectSetupOption('genre-grid', preset.genre);
+      const pickedEra = selectSetupOption('era-grid', preset.era);
+      const pickedArchetype = selectSetupOption('archetype-grid', preset.archetype);
+      if (!pickedGenre || !pickedEra || !pickedArchetype) {
+        alert('Unable to apply a random preset right now. Please try again.');
+        return;
+      }
+      trackEvent('selection_randomized', gaStoryParams({
+        preset_genre: gaSafe(preset.genre, 48),
+        preset_era: gaSafe(preset.era, 48),
+        preset_archetype: gaSafe(preset.archetype, 48),
+        selection_count: setupSelectionCount(),
+      }));
+    }
+
     function buildGrid(containerId, items, stateKey, limit = null) {
       const grid = document.getElementById(containerId);
       grid.innerHTML = '';
@@ -5589,6 +5644,11 @@
       buildGrid('genre-grid',     GENRES,     'genre', 17);
       buildGrid('era-grid',       ERAS,       'era');
       buildGrid('archetype-grid', ARCHETYPES, 'archetype', 17);
+
+      const rollDiceLink = document.getElementById('roll-dice-link');
+      if (rollDiceLink) {
+        rollDiceLink.addEventListener('click', rollTheDice);
+      }
 
       // Accordion header click — lets the user re-open any completed section to change selection
       ['genre-section', 'era-section', 'archetype-section'].forEach(sectionId => {

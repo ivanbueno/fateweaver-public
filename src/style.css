@@ -1125,6 +1125,30 @@ body {
   color: rgba(255, 255, 255, 0.72);
   flex-shrink: 0;
 }
+.step-name-roll {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.step-inline-link {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+  opacity: 0.92;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+.step-inline-link:visited {
+  color: var(--color-primary);
+}
+.step-inline-link:hover,
+.step-inline-link:focus-visible {
+  opacity: 1;
+  color: #fff;
+}
 
 /* Chosen value — hidden when expanded, visible when collapsed */
 .step-chosen {
@@ -2703,6 +2727,9 @@ body {
     letter-spacing: 0.12em;
     font-size: 0.86rem;
   }
+  .step-inline-link {
+    font-size: 0.74rem;
+  }
   .game-hud {
     top: calc(var(--icon-btn-top) + 36px + 5px);
     right: var(--hud-btn-right);
@@ -2838,6 +2865,9 @@ body {
   .step-name {
     font-size: 0.76rem;
     letter-spacing: 0.09em;
+  }
+  .step-inline-link {
+    font-size: 0.7rem;
   }
   .game-title {
     letter-spacing: 0.12em;
