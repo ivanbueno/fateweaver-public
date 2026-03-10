@@ -4957,6 +4957,31 @@
       overlay.classList.remove('hidden');
     }
 
+    function setImagePromptPlaceholder(prompt) {
+      const promptEl = document.getElementById('ph-prompt');
+      if (!promptEl) return;
+      const text = String(prompt || 'Generating scene…').trim() || 'Generating scene…';
+      const words = text.split(/\s+/);
+      promptEl.textContent = '';
+      promptEl.setAttribute('aria-label', text);
+
+      const frag = document.createDocumentFragment();
+      words.forEach((word, idx) => {
+        const wordEl = document.createElement('span');
+        wordEl.className = 'ph-word';
+        wordEl.style.setProperty('--word-index', String(idx));
+
+        const inner = document.createElement('span');
+        inner.className = 'ph-word-inner';
+        inner.textContent = word;
+
+        wordEl.appendChild(inner);
+        frag.appendChild(wordEl);
+      });
+
+      promptEl.appendChild(frag);
+    }
+
     /* ─── GAME: RENDER PAGE ────────────────────────────────── */
     function renderPage(pageId) {
       const page = S.story?.pages?.[pageId];
@@ -4990,7 +5015,7 @@
       renderChoices(page);
 
       // Image panel reset
-      document.getElementById('ph-prompt').textContent = page.imagePrompt || 'Generating scene…';
+      setImagePromptPlaceholder(page.imagePrompt);
       document.getElementById('img-placeholder').classList.remove('hidden');
       document.getElementById('game-img').classList.add('hidden');
       document.getElementById('game-img').classList.remove('cinematic-in');

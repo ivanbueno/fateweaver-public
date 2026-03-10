@@ -1679,6 +1679,8 @@ body {
   align-items: center; justify-content: center; gap: 1.2rem;
   padding: 2rem;
   z-index: 2;
+  perspective: 980px;
+  transform-style: preserve-3d;
 }
 .ph-spin {
   width: 42px; height: 42px; border-radius: 50%;
@@ -1688,14 +1690,133 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .ph-prompt {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.34ch;
+  padding: 0.46rem 0.72rem;
   font-family: var(--font-body);
   font-style: italic;
-  font-size: 0.8rem;
-  color: var(--color-muted);
+  font-size: clamp(0.8rem, 1.16vw, 1rem);
+  color: var(--loading-text);
   text-align: center;
-  max-width: 340px;
-  line-height: 1.6;
-  opacity: 0.55;
+  max-width: min(720px, 84vw);
+  line-height: 1.68;
+  opacity: 0.9;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.84), 0 0 28px rgba(0, 0, 0, 0.46);
+  transform-style: preserve-3d;
+  will-change: transform, filter, letter-spacing;
+  animation: phPromptMorph 5.8s ease-in-out infinite;
+}
+.ph-prompt::after {
+  content: '';
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  top: 0;
+  height: 48%;
+  pointer-events: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 86%);
+  opacity: 0;
+  transform: translateY(20px) scaleY(0.92);
+  animation: phPromptScrollReveal 4.6s cubic-bezier(0.2, 0.8, 0.25, 1) infinite;
+}
+.ph-word {
+  display: inline-block;
+  opacity: 0;
+  transform: translate3d(0, 0.95em, -28px) rotateX(6deg);
+  transform-origin: 50% 70%;
+  will-change: transform, opacity, filter;
+  animation-name: phWordScrollReveal, phWordDepth;
+  animation-duration: 820ms, 6.2s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in-out;
+  animation-delay: calc(var(--word-index, 0) * 62ms), calc(920ms + var(--word-index, 0) * 110ms);
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: both, both;
+}
+.ph-word-inner {
+  display: inline-block;
+  color: var(--loading-text-muted);
+  transform-origin: 50% 64%;
+  will-change: color, text-shadow, filter;
+  animation: phWordHighlight 4.2s linear calc(var(--word-index, 0) * 160ms) infinite;
+}
+@keyframes phWordScrollReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1em, -30px) rotateX(10deg);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateX(0deg);
+    filter: blur(0);
+  }
+}
+@keyframes phWordDepth {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotateX(0deg);
+  }
+  35% {
+    transform: translate3d(0, -0.08em, 20px) rotateX(3.5deg);
+  }
+  65% {
+    transform: translate3d(0, 0.04em, 9px) rotateX(-1.5deg);
+  }
+}
+@keyframes phWordHighlight {
+  0%, 18%, 100% {
+    color: var(--loading-text-muted);
+    text-shadow: 0 0 0 transparent;
+    filter: brightness(0.95);
+  }
+  32%, 56% {
+    color: var(--loading-accent);
+    text-shadow: 0 0 16px var(--loading-accent-soft), 0 0 24px rgba(255, 255, 255, 0.24);
+    filter: brightness(1.12);
+  }
+  70% {
+    color: var(--loading-text);
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.22);
+    filter: brightness(1);
+  }
+}
+@keyframes phPromptMorph {
+  0%, 100% {
+    letter-spacing: 0.01em;
+    transform: translate3d(0, 0, 0) rotateX(0deg);
+    filter: saturate(0.95);
+  }
+  45% {
+    letter-spacing: 0.04em;
+    transform: translate3d(0, -1px, 12px) rotateX(1.8deg);
+    filter: saturate(1.06);
+  }
+  75% {
+    letter-spacing: 0.018em;
+    transform: translate3d(0, 0, 6px) rotateX(-1deg);
+    filter: saturate(1.02);
+  }
+}
+@keyframes phPromptScrollReveal {
+  0%, 100% {
+    opacity: 0;
+    transform: translateY(20px) scaleY(0.92);
+  }
+  18% {
+    opacity: 0.06;
+  }
+  52% {
+    opacity: 0.22;
+    transform: translateY(-18px) scaleY(1);
+  }
+  72% {
+    opacity: 0;
+    transform: translateY(-28px) scaleY(1.05);
+  }
 }
 
 .game-img {
@@ -2751,6 +2872,12 @@ body {
 }
 
 @media (max-width: 600px) {
+  .ph-prompt {
+    max-width: min(94vw, 560px);
+    font-size: 0.78rem;
+    line-height: 1.62;
+    gap: 0.24ch;
+  }
   .loading-wrap {
     --panel-notch: 14px;
     width: calc(100% - 0.8rem);
@@ -2971,5 +3098,25 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  .ph-prompt {
+    animation: none !important;
+    letter-spacing: 0.01em;
+  }
+  .ph-prompt::after {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+  .ph-word {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    animation: none !important;
+  }
+  .ph-word-inner {
+    animation: none !important;
+    color: var(--loading-text) !important;
+    text-shadow: none !important;
+    filter: none !important;
   }
 }
