@@ -645,10 +645,15 @@
     }
 
     function gaStoryParams(extra = {}) {
+      const context = {};
+      const genre = gaSafe(S.genre, 48);
+      const era = gaSafe(S.era, 48);
+      const archetype = gaSafe(S.archetype, 48);
+      if (genre) context.genre = genre;
+      if (era) context.era = era;
+      if (archetype) context.archetype = archetype;
       return {
-        genre: gaSafe(S.genre || 'none', 48),
-        era: gaSafe(S.era || 'none', 48),
-        archetype: gaSafe(S.archetype || 'none', 48),
+        ...context,
         image_mode: gaSafe(S.imageMode || 'none', 16),
         music_source: gaSafe(S.musicSource || 'none', 16),
         story_session_id: Number(S.storySessionId || 0),
