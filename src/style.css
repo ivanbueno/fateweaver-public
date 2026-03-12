@@ -1949,6 +1949,13 @@ body {
   --beat-vignette-inner-stop: 36%;
   --beat-vignette-opacity-mid: 0.34;
   --beat-vignette-opacity-end: 0.28;
+  --camera-breathe-duration: 10.8s;
+  --camera-breathe-x-a: 7.4px;
+  --camera-breathe-y-a: -5.2px;
+  --camera-breathe-x-b: -6.5px;
+  --camera-breathe-y-b: 4.2px;
+  --camera-breathe-scale-peak: 0.024;
+  --camera-breathe-delay: 12.72s;
 }
 .image-panel::before {
   content: '';
@@ -2553,7 +2560,12 @@ body {
 }
 .image-panel.is-beat-transition .game-img.cinematic-in,
 .image-panel.is-beat-transition .game-svg.cinematic-in {
-  animation: cinematicBeatReveal var(--beat-motion-duration) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-name: cinematicBeatReveal, cinematicCameraBreath;
+  animation-duration: var(--beat-motion-duration), var(--camera-breathe-duration);
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in-out;
+  animation-delay: 0s, var(--camera-breathe-delay);
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: forwards, none;
 }
 @keyframes cinematicBeatReveal {
   0% {
@@ -2574,6 +2586,28 @@ body {
     opacity: 1;
     transform: translate3d(var(--beat-pan-end-x), var(--beat-pan-end-y), 0) scale(var(--beat-pan-scale));
     filter: var(--img-filter) blur(0) brightness(1);
+  }
+}
+@keyframes cinematicCameraBreath {
+  0% {
+    transform: translate3d(var(--beat-pan-end-x), var(--beat-pan-end-y), 0) scale(var(--beat-pan-scale));
+  }
+  38% {
+    transform: translate3d(
+      calc(var(--beat-pan-end-x) + var(--camera-breathe-x-a)),
+      calc(var(--beat-pan-end-y) + var(--camera-breathe-y-a)),
+      0
+    ) scale(calc(var(--beat-pan-scale) + var(--camera-breathe-scale-peak)));
+  }
+  72% {
+    transform: translate3d(
+      calc(var(--beat-pan-end-x) + var(--camera-breathe-x-b)),
+      calc(var(--beat-pan-end-y) + var(--camera-breathe-y-b)),
+      0
+    ) scale(calc(var(--beat-pan-scale) + (var(--camera-breathe-scale-peak) * 0.9)));
+  }
+  100% {
+    transform: translate3d(var(--beat-pan-end-x), var(--beat-pan-end-y), 0) scale(var(--beat-pan-scale));
   }
 }
 @keyframes cinematicVignetteShift {

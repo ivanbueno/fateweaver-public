@@ -5343,6 +5343,21 @@
       const vigPeak = clampBeatMotion(vigBase + 0.08 + rng() * 0.05, 0.24, 0.5);
       const vigEnd = clampBeatMotion(vigBase + 0.03 + rng() * 0.05, 0.22, 0.44);
       const vigInner = clampBeatMotion(36 - beatPhase * 3 - pathBias * 2 + rng() * 2, 28, 40);
+      const breatheRange = 6.2 + beatPhase * 3.8 + pathBias * 1.1;
+      const breatheAx = (rng() - 0.5) * breatheRange * 2;
+      const breatheAy = (rng() - 0.5) * breatheRange * 1.6;
+      const breatheBx = clampBeatMotion(
+        (-breatheAx * (0.68 + rng() * 0.26)) + ((rng() - 0.5) * 0.8),
+        -13,
+        13
+      );
+      const breatheBy = clampBeatMotion(
+        (-breatheAy * (0.62 + rng() * 0.24)) + ((rng() - 0.5) * 0.6),
+        -10.5,
+        10.5
+      );
+      const breatheScale = 0.02 + beatPhase * 0.0042 + pathBias * 0.0014 + rng() * 0.0034;
+      const breatheSec = 6.9 + beatPhase * 1.5 + rng() * 1.9;
 
       return {
         beat,
@@ -5361,6 +5376,12 @@
         vigPeak,
         vigEnd,
         vigInner,
+        breatheAx,
+        breatheAy,
+        breatheBx,
+        breatheBy,
+        breatheScale,
+        breatheSec,
       };
     }
 
@@ -5385,6 +5406,13 @@
       panel.style.setProperty('--beat-vignette-opacity-mid', profile.vigPeak.toFixed(3));
       panel.style.setProperty('--beat-vignette-opacity-end', profile.vigEnd.toFixed(3));
       panel.style.setProperty('--beat-vignette-inner-stop', `${profile.vigInner.toFixed(2)}%`);
+      panel.style.setProperty('--camera-breathe-duration', `${profile.breatheSec.toFixed(2)}s`);
+      panel.style.setProperty('--camera-breathe-x-a', `${profile.breatheAx.toFixed(2)}px`);
+      panel.style.setProperty('--camera-breathe-y-a', `${profile.breatheAy.toFixed(2)}px`);
+      panel.style.setProperty('--camera-breathe-x-b', `${profile.breatheBx.toFixed(2)}px`);
+      panel.style.setProperty('--camera-breathe-y-b', `${profile.breatheBy.toFixed(2)}px`);
+      panel.style.setProperty('--camera-breathe-scale-peak', profile.breatheScale.toFixed(4));
+      panel.style.setProperty('--camera-breathe-delay', `${(profile.motionSec + 0.12).toFixed(2)}s`);
 
       panel.classList.remove('is-beat-transition');
       void panel.offsetWidth;
