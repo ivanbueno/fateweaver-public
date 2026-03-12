@@ -4512,6 +4512,32 @@
       resistance: _spResistance, western: _spWestern, thriller: _spThriller, adventure: _spAdventure,
       drama: _spDrama, scifi: _spScifi, horror: _spHorror,
     };
+    const AMBIENT_LOOP_BY_THEME = {
+      noir: 'rain',
+      thriller: 'rain',
+      resistance: 'rain',
+      western: 'dust',
+      adventure: 'dust',
+      samurai: 'dust',
+      cyberpunk: 'scanline',
+      scifi: 'scanline',
+      space: 'scanline',
+      gothic: 'candle',
+      horror: 'candle',
+      drama: 'candle',
+      romantic: 'candle',
+    };
+
+    function applyAmbientLoop(key) {
+      const panel = document.getElementById('image-panel');
+      if (!panel) return;
+      const loop = AMBIENT_LOOP_BY_THEME[key] || '';
+      if (loop) {
+        panel.dataset.ambientLoop = loop;
+      } else {
+        delete panel.dataset.ambientLoop;
+      }
+    }
 
     function applyScreenTexture(key) {
       const fn = SCREEN_PATTERN_FNS[key];
@@ -4527,12 +4553,14 @@
       if (!cfg) return;
       document.body.className = `genre-${cfg.key}`;
       applyScreenTexture(cfg.key);
+      applyAmbientLoop(cfg.key);
     }
 
     function applyTheme(genre) {
       const cfg = GENRE_CFG[genre];
       if (!cfg) return;
       document.body.className = `genre-${cfg.key}`;
+      applyAmbientLoop(cfg.key);
       document.documentElement.style.setProperty('--font-body', cfg.font);
       // Load font
       let link = document.getElementById('genre-font-link');
@@ -6358,6 +6386,7 @@
         document.getElementById('begin-btn').disabled = true;
         // Reset body class and font to noir default
         document.body.className = 'genre-noir';
+        applyAmbientLoop('noir');
         document.documentElement.style.setProperty('--font-body', "'Lora', Georgia, serif");
         // Re-lock sequential setup sections
         resetSetupReveal();
@@ -6401,6 +6430,7 @@
       initHudState();
       initAnalytics();
       applyScreenTexture('noir'); // default theme
+      applyAmbientLoop('noir');
       bindAudioUnlockListeners();
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden && MUS.ready) void ensureAudioPlaybackReady();
