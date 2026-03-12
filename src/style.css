@@ -3056,9 +3056,22 @@ body {
   .story-content {
     max-height: min(56vh, 500px);
   }
+  #screen-ending {
+    --ending-safe-top: calc(env(safe-area-inset-top) + 0.5rem);
+    --ending-safe-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+    justify-content: flex-start;
+  }
   .ending-wrap {
     width: min(860px, calc(100% - 1rem));
     padding: 1.1rem;
+    margin-top: var(--ending-safe-top);
+    margin-bottom: var(--ending-safe-bottom);
+    max-height: calc(100vh - var(--ending-safe-top) - var(--ending-safe-bottom));
+    max-height: calc(100dvh - var(--ending-safe-top) - var(--ending-safe-bottom));
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
   .ending-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
