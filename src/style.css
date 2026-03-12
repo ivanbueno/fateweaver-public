@@ -38,6 +38,25 @@
   --loading-text-muted: rgba(213, 220, 231, 0.78);
   --loading-accent: #f2cb84;
   --loading-accent-soft: rgba(242, 203, 132, 0.62);
+  --motion-instant: 0.06s;
+  --motion-fast: 0.2s;
+  --motion-fast-plus: 0.22s;
+  --motion-quick: 0.24s;
+  --motion-medium: 0.35s;
+  --motion-deliberate: 0.42s;
+  --motion-slow: 0.5s;
+  --motion-slower: 0.6s;
+  --motion-theme-shift: 0.7s;
+  --motion-slowest: 0.72s;
+  --motion-screen-fade: 1s;
+  --ease-standard: ease;
+  --ease-gentle: ease-in-out;
+  --ease-emphatic: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-expressive: cubic-bezier(0.2, 0.8, 0.24, 1);
+  --ease-reveal: cubic-bezier(0.2, 0.8, 0.25, 1);
+  --ease-ripple: cubic-bezier(0.18, 0.78, 0.2, 1);
+  --ease-out: ease-out;
+  --ease-linear: linear;
   --type-leading-copy: 1.6;
   --type-leading-story: 1.76;
   --type-leading-ui: 1.28;
@@ -273,7 +292,7 @@ body {
   color: var(--color-text);
   line-height: var(--type-leading-copy);
   letter-spacing: var(--type-track-copy);
-  transition: background 0.7s ease, color 0.7s ease;
+  transition: background var(--motion-theme-shift) var(--ease-standard), color var(--motion-theme-shift) var(--ease-standard);
 }
 
 /* ─── SCREEN SYSTEM ─── */
@@ -281,7 +300,7 @@ body {
   position: fixed; inset: 0;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  transition: opacity 0.5s ease;
+  transition: opacity var(--motion-slow) var(--ease-standard);
   overflow-y: auto;
 }
 .screen.hidden { opacity: 0; pointer-events: none; z-index: -1; }
@@ -303,7 +322,7 @@ body {
   backdrop-filter: blur(12px) saturate(160%);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
-  transition: background 0.2s ease, filter 0.2s ease;
+  transition: background var(--motion-fast) var(--ease-standard), filter var(--motion-fast) var(--ease-standard);
 }
 .info-btn:hover,
 .music-btn:hover,
@@ -371,7 +390,7 @@ body {
   font-size: 0.88rem;
   font-family: var(--font-hud);
   letter-spacing: 0.02em;
-  transition: background 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
+  transition: background var(--motion-fast) var(--ease-standard), filter var(--motion-fast) var(--ease-standard), opacity var(--motion-fast) var(--ease-standard);
 }
 .hud-btn.hud-hidden {
   display: none;
@@ -384,7 +403,7 @@ body {
   opacity: 1;
 }
 .music-btn.mus-hidden  { opacity: 0; pointer-events: none; }
-.music-btn.mus-loading { animation: musPulse 1.6s ease-in-out infinite; }
+.music-btn.mus-loading { animation: musPulse 1.6s var(--ease-gentle) infinite; }
 /* Muted state: draw a diagonal slash over the icon via ::after */
 .music-btn.mus-off {
   opacity: 0.6;
@@ -480,7 +499,7 @@ body {
 .info-link {
   color: var(--color-muted);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--motion-fast);
 }
 .info-link:hover { color: var(--color-primary); }
 
@@ -496,7 +515,7 @@ body {
   text-transform: uppercase;
   padding: 0.5rem 1rem;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition: color var(--motion-fast), border-color var(--motion-fast);
 }
 .info-config-btn:hover { color: var(--color-primary); border-color: var(--color-primary); }
 
@@ -533,7 +552,7 @@ body {
   border: 1px solid var(--color-bdr);
   border-radius: 2px; color: var(--color-text);
   font-family: monospace; font-size: 0.82rem;
-  transition: border-color 0.2s;
+  transition: border-color var(--motion-fast);
 }
 .settings-card input:focus { outline: none; border-color: var(--color-primary); }
 .settings-row { display: flex; gap: 0.6rem; }
@@ -548,7 +567,7 @@ body {
   cursor: pointer;
   font-size: 0.82rem;
   color: var(--color-text);
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color var(--motion-fast), background var(--motion-fast);
 }
 .settings-radio:hover { border-color: var(--color-primary); background: var(--color-hvr); }
 .settings-radio input[type="radio"] { accent-color: var(--color-primary); cursor: pointer; margin: 0; }
@@ -557,7 +576,7 @@ body {
   background: none; border: none;
   color: var(--color-muted); cursor: pointer;
   font-size: 1.1rem; padding: 0.2rem;
-  transition: color 0.2s;
+  transition: color var(--motion-fast);
 }
 .btn-close:hover { color: var(--color-text); }
 
@@ -733,7 +752,7 @@ body {
   overflow: hidden;
   pointer-events: none;
   opacity: 0.55;
-  transition: opacity 1s ease;
+  transition: opacity var(--motion-screen-fade) var(--ease-standard);
 }
 .screen-bg svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 
@@ -775,7 +794,7 @@ body {
   color: var(--color-primary);
   opacity: 0.5;
   margin-bottom: 1.4rem;
-  animation: ornamentPulse 3.5s ease-in-out infinite;
+  animation: ornamentPulse 3.5s var(--ease-gentle) infinite;
 }
 @keyframes ornamentPulse {
   0%, 100% { opacity: 0.35; transform: scale(1) rotate(0deg); }
@@ -798,7 +817,7 @@ body {
 .game-logo {
   width: clamp(3rem, 7vw, 5.5rem);
   height: auto;
-  animation: logoPulse 3.5s ease-in-out infinite;
+  animation: logoPulse 3.5s var(--ease-gentle) infinite;
 }
 
 @keyframes logoPulse {
@@ -814,7 +833,7 @@ body {
   color: var(--color-primary);
   line-height: 1;
   text-shadow: 0 0 60px var(--glow-color), 0 0 120px var(--glow-color);
-  transition: text-shadow 0.7s ease;
+  transition: text-shadow var(--motion-theme-shift) var(--ease-standard);
 }
 
 .game-subtitle {
@@ -881,7 +900,7 @@ body {
   font-size: 0.8rem;
   opacity: 0.7;
   transform: rotate(-90deg);
-  transition: transform 0.2s ease;
+  transition: transform var(--motion-fast) var(--ease-standard);
 }
 
 .setup-history[open] .setup-history-summary::after {
@@ -908,7 +927,7 @@ body {
   text-transform: uppercase;
   padding: 0.36rem 0.62rem;
   cursor: pointer;
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  transition: border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
   margin: 5px 0;
 }
 
@@ -953,7 +972,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(8, 10, 16, 0.42);
   overflow: hidden;
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  transition: border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
 .setup-history-preview {
@@ -984,7 +1003,7 @@ body {
   align-content: center;
   color: rgba(255, 255, 255, 0.74);
   text-shadow: 0 1px 7px rgba(0, 0, 0, 0.5);
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-fast) var(--ease-standard);
 }
 .setup-history-preview.has-image .setup-history-preview-empty {
   opacity: 0;
@@ -1210,8 +1229,8 @@ body {
   box-shadow:
     0 16px 34px rgba(0, 0, 0, 0.34),
     inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+  transition: opacity var(--motion-slower) var(--ease-emphatic),
+              transform var(--motion-slower) var(--ease-emphatic),
               border-color 0.25s ease,
               box-shadow 0.25s ease;
 }
@@ -1261,7 +1280,7 @@ body {
 .accordion-body {
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: grid-template-rows var(--motion-deliberate) var(--ease-emphatic);
 }
 .setup-section.accordion-closed .accordion-body {
   grid-template-rows: 0fr;
@@ -1277,7 +1296,7 @@ body {
   gap: 0.82rem;
   padding: 1rem 1.1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  transition: background 0.2s ease, padding 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background var(--motion-fast) var(--ease-standard), padding 0.3s var(--ease-emphatic);
 }
 /* Collapsed header: compact, fully clickable */
 .setup-section.accordion-closed .step-header {
@@ -1330,7 +1349,7 @@ body {
   color: rgba(255, 255, 255, 0.94);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.22s ease, box-shadow 0.26s ease, transform 0.22s ease, background 0.26s ease;
+  transition: border-color var(--motion-fast-plus) var(--ease-standard), box-shadow 0.26s ease, transform var(--motion-fast-plus) var(--ease-standard), background 0.26s ease;
 }
 .quick-preset-btn:enabled:hover {
   transform: translateY(-1px);
@@ -1386,7 +1405,7 @@ body {
   font-size: 1.04rem;
   color: var(--color-primary);
   opacity: 0.9;
-  transition: transform 0.22s ease;
+  transition: transform var(--motion-fast-plus) var(--ease-standard);
 }
 .quick-preset-btn:enabled:hover .quick-preset-arrow {
   transform: rotate(-18deg);
@@ -1396,7 +1415,7 @@ body {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 18px var(--glow-color);
 }
 .setup-quick-preset.is-rolling .quick-preset-arrow {
-  animation: quickPresetSpin 0.68s linear infinite;
+  animation: quickPresetSpin 0.68s var(--ease-linear) infinite;
 }
 .quick-preset-result {
   min-height: 1.2em;
@@ -1408,7 +1427,7 @@ body {
   color: rgba(255, 255, 255, 0.86);
   opacity: 0;
   transform: translateY(-2px);
-  transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
+  transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
 .setup-quick-preset.has-result .quick-preset-result {
   opacity: 0.98;
@@ -1448,7 +1467,7 @@ body {
   color: rgba(255, 255, 255, 0.66);
   opacity: 0;
   flex-shrink: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-fast) var(--ease-standard);
 }
 .setup-section.accordion-closed .step-header:hover .step-change {
   opacity: 0.7;
@@ -1481,7 +1500,7 @@ body {
   line-height: var(--type-leading-ui);
   position: relative;
   overflow: hidden; /* clip the expanding bubble */
-  transition: color 0.25s ease, box-shadow 0.3s ease, transform 0.24s ease;
+  transition: color 0.25s ease, box-shadow 0.3s ease, transform var(--motion-quick) var(--ease-standard);
 }
 
 /* Bubble expands from behind the text (z-index: -1 stays within the
@@ -1496,7 +1515,7 @@ body {
   transform: translate(-10px, -70px) scale(0.1);
   opacity: 0;
   z-index: -1;
-  transition: transform 0.35s ease, opacity 0.35s ease;
+  transition: transform var(--motion-medium) var(--ease-standard), opacity var(--motion-medium) var(--ease-standard);
   pointer-events: none;
 }
 .opt:hover {
@@ -1544,8 +1563,8 @@ body {
   padding: 1rem 0.2rem 1.8rem;
   display: flex;
   justify-content: center;
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity var(--motion-slower) var(--ease-emphatic),
+              transform var(--motion-slower) var(--ease-emphatic);
 }
 .begin-wrap.locked {
   opacity: 0;
@@ -1572,7 +1591,7 @@ body {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+  transition: transform 0.3s var(--ease-emphatic),
               box-shadow 0.3s ease;
 }
 /* Shimmer sweep on hover */
@@ -1612,7 +1631,7 @@ body {
   background:
     radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.08), transparent 30%),
     radial-gradient(circle at 84% 78%, rgba(255, 255, 255, 0.05), transparent 34%);
-  animation: loadingNebula 12s ease-in-out infinite alternate;
+  animation: loadingNebula 12s var(--ease-gentle) infinite alternate;
 }
 #screen-loading::after {
   content: '';
@@ -1670,7 +1689,7 @@ body {
   background: var(--loading-accent);
   opacity: 0.18;
   box-shadow: 0 0 8px var(--loading-accent-soft);
-  animation: loadingParticleRise var(--dur) linear infinite;
+  animation: loadingParticleRise var(--dur) var(--ease-linear) infinite;
   animation-delay: var(--delay);
 }
 @keyframes loadingParticleRise {
@@ -1686,7 +1705,7 @@ body {
   font-size: 2rem;
   color: var(--loading-accent);
   text-shadow: 0 0 24px var(--loading-accent-soft);
-  animation: sigilSpin 6s linear infinite;
+  animation: sigilSpin 6s var(--ease-linear) infinite;
 }
 @keyframes sigilSpin {
   0%   { transform: rotate(0deg) scale(1); opacity: 0.56; }
@@ -1720,7 +1739,7 @@ body {
   color: var(--loading-accent);
   text-shadow: 0 0 18px var(--loading-accent-soft);
   filter: blur(0px);
-  transition: opacity 0.35s ease, filter 0.35s ease;
+  transition: opacity var(--motion-medium) var(--ease-standard), filter var(--motion-medium) var(--ease-standard);
 }
 #loading-verb.verb-fade {
   opacity: 0;
@@ -1760,7 +1779,7 @@ body {
   border-radius: inherit;
   background: linear-gradient(90deg, var(--loading-accent), rgba(255, 255, 255, 0.9));
   box-shadow: 0 0 26px var(--loading-accent-soft);
-  transition: width 0.24s ease-out;
+  transition: width var(--motion-quick) var(--ease-out);
 }
 .loading-bar-fill::after {
   content: '';
@@ -1805,7 +1824,7 @@ body {
   padding: 0.42rem 0.55rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.28);
-  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 .loading-stage-code {
   font-family: var(--font-signal);
@@ -1861,7 +1880,7 @@ body {
   font-size: 0.92rem;
   line-height: 1.6;
   color: var(--loading-text-strong);
-  transition: opacity 0.24s ease, filter 0.24s ease;
+  transition: opacity var(--motion-quick) var(--ease-standard), filter var(--motion-quick) var(--ease-standard);
 }
 .loading-intel-text.intel-fade {
   opacity: 0;
@@ -1989,7 +2008,7 @@ body {
   will-change: transform, opacity, filter;
 }
 .image-panel.is-beat-transition .cinematic-vignette {
-  animation: cinematicVignetteShift var(--beat-motion-duration) ease-in-out forwards;
+  animation: cinematicVignetteShift var(--beat-motion-duration) var(--ease-gentle) forwards;
 }
 
 .img-placeholder {
@@ -2006,7 +2025,7 @@ body {
   width: 42px; height: 42px; border-radius: 50%;
   border: 1.5px solid var(--color-bdr);
   border-top-color: var(--color-primary);
-  animation: spin 1.2s linear infinite;
+  animation: spin 1.2s var(--ease-linear) infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .ph-prompt {
@@ -2028,7 +2047,7 @@ body {
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.84), 0 0 28px rgba(0, 0, 0, 0.46);
   transform-style: preserve-3d;
   will-change: transform, filter, letter-spacing;
-  animation: phPromptMorph 5.8s ease-in-out infinite;
+  animation: phPromptMorph 5.8s var(--ease-gentle) infinite;
 }
 .ph-prompt::after {
   content: '';
@@ -2042,7 +2061,7 @@ body {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 86%);
   opacity: 0;
   transform: translateY(20px) scaleY(0.92);
-  animation: phPromptScrollReveal 4.6s cubic-bezier(0.2, 0.8, 0.25, 1) infinite;
+  animation: phPromptScrollReveal 4.6s var(--ease-reveal) infinite;
 }
 .ph-word {
   display: inline-block;
@@ -2052,7 +2071,7 @@ body {
   will-change: transform, opacity, filter;
   animation-name: phWordScrollReveal, phWordDepth;
   animation-duration: 820ms, 6.2s;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in-out;
+  animation-timing-function: var(--ease-emphatic), var(--ease-gentle);
   animation-delay: calc(var(--word-index, 0) * 62ms), calc(920ms + var(--word-index, 0) * 110ms);
   animation-iteration-count: 1, infinite;
   animation-fill-mode: both, both;
@@ -2171,7 +2190,7 @@ body {
   inset: 0;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.72s ease;
+  transition: opacity var(--motion-slowest) var(--ease-standard);
   mix-blend-mode: screen;
 }
 .image-panel[data-ambient-loop="rain"] .ambient-rain,
@@ -2212,7 +2231,7 @@ body {
     );
   background-size: 230px 230px, 360px 360px;
   background-position: 0 0, 128px -96px;
-  animation: ambientRainDriftA 11.5s linear infinite;
+  animation: ambientRainDriftA 11.5s var(--ease-linear) infinite;
 }
 .ambient-rain::after {
   opacity: 0.3;
@@ -2233,7 +2252,7 @@ body {
     );
   background-size: 310px 310px, 520px 520px;
   background-position: -90px -40px, 120px 120px;
-  animation: ambientRainDriftB 16s linear infinite;
+  animation: ambientRainDriftB 16s var(--ease-linear) infinite;
 }
 
 /* Dust motes */
@@ -2257,7 +2276,7 @@ body {
     radial-gradient(circle at 22% 78%, rgba(255, 236, 196, 0.22) 0 1.8px, transparent 2.6px),
     radial-gradient(circle at 48% 84%, rgba(255, 228, 172, 0.18) 0 1.6px, transparent 2.3px);
   filter: blur(0.15px);
-  animation: ambientDustMotesA 28s linear infinite;
+  animation: ambientDustMotesA 28s var(--ease-linear) infinite;
 }
 .ambient-dust::after {
   opacity: 0.32;
@@ -2269,7 +2288,7 @@ body {
     radial-gradient(circle at 66% 86%, rgba(255, 232, 184, 0.2) 0 2.1px, transparent 3.2px),
     radial-gradient(circle at 8% 74%, rgba(255, 240, 210, 0.18) 0 2.3px, transparent 3.4px);
   filter: blur(0.5px);
-  animation: ambientDustMotesB 36s linear infinite;
+  animation: ambientDustMotesB 36s var(--ease-linear) infinite;
 }
 
 /* Scanline flicker */
@@ -2304,7 +2323,7 @@ body {
     rgba(173, 245, 255, 0.22) 45%,
     rgba(173, 245, 255, 0) 100%
   );
-  animation: ambientScanlineSweep 6.4s linear infinite;
+  animation: ambientScanlineSweep 6.4s var(--ease-linear) infinite;
 }
 
 /* Candle shimmer */
@@ -2325,7 +2344,7 @@ body {
     radial-gradient(ellipse at 50% 8%, rgba(255, 232, 202, 0.1) 0%, transparent 42%);
   filter: blur(0.7px);
   transform-origin: 50% 88%;
-  animation: ambientCandleGlow 5.4s ease-in-out infinite;
+  animation: ambientCandleGlow 5.4s var(--ease-gentle) infinite;
 }
 .ambient-candle::after {
   opacity: 0.24;
@@ -2520,7 +2539,7 @@ body {
   backdrop-filter: blur(3px) saturate(120%);
   -webkit-backdrop-filter: blur(3px) saturate(120%);
   pointer-events: none;
-  animation: storyTitlePlateIn 0.5s cubic-bezier(0.2, 0.8, 0.24, 1);
+  animation: storyTitlePlateIn var(--motion-slow) var(--ease-expressive);
 }
 .story-title-text {
   margin: 0;
@@ -2552,7 +2571,7 @@ body {
 }
 
 .cinematic-in {
-  animation: cinematicReveal 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: cinematicReveal 2.4s var(--ease-emphatic) forwards;
 }
 @keyframes cinematicReveal {
   from { opacity: 0; transform: scale(1.05); filter: var(--img-filter) blur(14px) brightness(0.65); }
@@ -2562,7 +2581,7 @@ body {
 .image-panel.is-beat-transition .game-svg.cinematic-in {
   animation-name: cinematicBeatReveal, cinematicCameraBreath;
   animation-duration: var(--beat-motion-duration), var(--camera-breathe-duration);
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in-out;
+  animation-timing-function: var(--ease-emphatic), var(--ease-gentle);
   animation-delay: 0s, var(--camera-breathe-delay);
   animation-iteration-count: 1, infinite;
   animation-fill-mode: forwards, none;
@@ -2642,7 +2661,7 @@ body {
   opacity: 1;
   transform: translateY(0) scale(1);
   transform-origin: top right;
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition: opacity var(--motion-fast-plus) var(--ease-standard), transform var(--motion-fast-plus) var(--ease-standard);
 }
 .game-hud.is-collapsed {
   opacity: 0;
@@ -2773,7 +2792,7 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  transition: border-color 0.24s ease, background 0.24s ease, transform 0.24s ease;
+  transition: border-color var(--motion-quick) var(--ease-standard), background var(--motion-quick) var(--ease-standard), transform var(--motion-quick) var(--ease-standard);
 }
 .bs[data-tooltip] {
   cursor: var(--cursor-inspect);
@@ -2801,7 +2820,7 @@ body {
   pointer-events: none;
   opacity: 0;
   transform: translateY(2px);
-  transition: opacity 0.06s linear, transform 0.06s linear;
+  transition: opacity var(--motion-instant) var(--ease-linear), transform var(--motion-instant) var(--ease-linear);
 }
 .story-circle-tooltip.is-visible {
   opacity: 1;
@@ -2844,7 +2863,7 @@ body {
   opacity: 0.18;
   transform: scaleX(0.08);
   transform-origin: left center;
-  transition: transform 0.24s ease, opacity 0.24s ease;
+  transition: transform var(--motion-quick) var(--ease-standard), opacity var(--motion-quick) var(--ease-standard);
   background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
 }
 
@@ -2934,7 +2953,7 @@ body {
   text-shadow:
     0 1px 14px rgba(0,0,0,1),
     0 0  38px rgba(0,0,0,0.82);
-  transition: opacity 0.42s ease;
+  transition: opacity var(--motion-deliberate) var(--ease-standard);
 }
 
 /* ── Choice buttons — command-style action cards ── */
@@ -2963,13 +2982,13 @@ body {
   line-height: var(--type-leading-ui);
   cursor: var(--cursor-choice);
   text-align: left;
-  transition: border-color 0.22s ease, background 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+  transition: border-color var(--motion-fast-plus) var(--ease-standard), background var(--motion-fast-plus) var(--ease-standard), transform var(--motion-fast-plus) var(--ease-standard), box-shadow var(--motion-fast-plus) var(--ease-standard);
   text-shadow: 0 1px 8px rgba(0,0,0,0.95);
   width: 100%;
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  animation: choiceIntro 0.4s cubic-bezier(0.2, 0.8, 0.24, 1) both;
+  animation: choiceIntro 0.4s var(--ease-expressive) both;
   animation-delay: var(--choice-delay, 0ms);
 }
 @keyframes choiceIntro {
@@ -3006,7 +3025,7 @@ body {
   font-size: 0.98em;
   color: var(--color-primary);
   flex-shrink: 0;
-  transition: opacity 0.22s, transform 0.22s;
+  transition: opacity var(--motion-fast-plus), transform var(--motion-fast-plus);
 }
 .choice-ripple {
   position: absolute;
@@ -3017,7 +3036,7 @@ body {
   opacity: 0;
   mix-blend-mode: screen;
   z-index: 1;
-  animation: choiceRipple 0.5s cubic-bezier(0.18, 0.78, 0.2, 1) forwards;
+  animation: choiceRipple 0.5s var(--ease-ripple) forwards;
 }
 @keyframes choiceRipple {
   from {
@@ -3183,7 +3202,7 @@ body {
     radial-gradient(ellipse at center, transparent 36%, rgba(2, 8, 16, 0.78) 100%),
     linear-gradient(132deg, transparent 24%, rgba(145, 205, 255, 0.11) 45%, transparent 66%);
   will-change: transform;
-  animation: thrillerSweep 8s linear infinite;
+  animation: thrillerSweep 8s var(--ease-linear) infinite;
 }
 .genre-thriller .image-panel::after {
   content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
@@ -3228,7 +3247,7 @@ body {
     linear-gradient(125deg, transparent 22%, rgba(130, 224, 255, 0.12) 46%, transparent 70%),
     radial-gradient(ellipse at center, transparent 38%, rgba(2, 10, 22, 0.68) 100%);
   will-change: transform;
-  animation: scifiSweep 9s linear infinite;
+  animation: scifiSweep 9s var(--ease-linear) infinite;
 }
 .genre-scifi .image-panel::after {
   content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
@@ -3249,7 +3268,7 @@ body {
     radial-gradient(ellipse at 18% 86%, rgba(150, 28, 58, 0.2) 0%, transparent 50%),
     radial-gradient(ellipse at 82% 20%, rgba(130, 24, 52, 0.16) 0%, transparent 52%),
     radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.78) 100%);
-  animation: horrorPulse 4.2s ease-in-out infinite;
+  animation: horrorPulse 4.2s var(--ease-gentle) infinite;
 }
 .genre-horror .image-panel::after {
   content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
@@ -3370,7 +3389,7 @@ body {
   background:
     radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.1), transparent 36%),
     radial-gradient(circle at 80% 84%, rgba(255, 255, 255, 0.08), transparent 38%);
-  animation: endingAtmosphere 12s ease-in-out infinite alternate;
+  animation: endingAtmosphere 12s var(--ease-gentle) infinite alternate;
 }
 #screen-ending::after {
   content: '';
@@ -3432,7 +3451,7 @@ body {
   display: block;
 }
 #screen-ending.is-revealed .ending-bg-media {
-  animation: endingBackdropDrift 14s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: endingBackdropDrift 14s var(--ease-emphatic) both;
 }
 @keyframes endingBackdropDrift {
   from { transform: scale(1.08) translate3d(0, 0, 0); }
@@ -3468,7 +3487,7 @@ body {
   filter: blur(6px);
 }
 #screen-ending.is-revealed .ending-reveal {
-  animation: endingReveal 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: endingReveal 720ms var(--ease-emphatic) both;
   animation-delay: var(--ending-delay, 0ms);
 }
 @keyframes endingReveal {
@@ -3496,8 +3515,8 @@ body {
 .ending-sigil.bad     { color: #d96464; }
 #screen-ending.is-revealed .ending-sigil.ending-reveal {
   animation:
-    endingSigilReveal 640ms cubic-bezier(0.16, 1, 0.3, 1) var(--ending-delay, 100ms) both,
-    endingSigilPulse 2.8s ease-in-out calc(var(--ending-delay, 100ms) + 640ms) infinite;
+    endingSigilReveal 640ms var(--ease-emphatic) var(--ending-delay, 100ms) both,
+    endingSigilPulse 2.8s var(--ease-gentle) calc(var(--ending-delay, 100ms) + 640ms) infinite;
 }
 @keyframes endingSigilReveal {
   0% {
@@ -3534,7 +3553,7 @@ body {
 .ending-badge.neutral { color: #a99a74; }
 .ending-badge.bad     { color: #d96464; }
 #screen-ending.is-revealed .ending-badge.ending-reveal {
-  animation: endingTitleRise 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: endingTitleRise 760ms var(--ease-emphatic) both;
   animation-delay: var(--ending-delay, 700ms);
 }
 @keyframes endingTitleRise {
@@ -3587,7 +3606,7 @@ body {
 .ending-stat:nth-child(3) { --ending-stat-index: 2; }
 .ending-stat:nth-child(4) { --ending-stat-index: 3; }
 #screen-ending.is-revealed .ending-stat {
-  animation: endingMetricRise 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: endingMetricRise 560ms var(--ease-emphatic) both;
   animation-delay: calc(var(--ending-metrics-delay, 1240ms) + (var(--ending-stat-index, 0) * 110ms));
 }
 @keyframes endingMetricRise {
@@ -3664,7 +3683,7 @@ body {
   border-radius: inherit;
   background: linear-gradient(90deg, var(--ending-accent), rgba(255, 255, 255, 0.92));
   box-shadow: 0 0 22px var(--ending-accent-soft);
-  transition: width 1200ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 1200ms var(--ease-emphatic);
   transition-delay: 0ms;
 }
 #screen-ending.is-revealed .ending-meter-fill {
