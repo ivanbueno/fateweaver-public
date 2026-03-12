@@ -5287,7 +5287,11 @@
       (S.choicesMade || []).forEach(choice => pushId(choice?.to));
       pushId(S.currentPageId);
 
+      const storyTitle = normalizeStoryText(S.story?.title, 120) || 'Untitled Chronicle';
+      const storyTagline = normalizeStoryText(S.story?.tagline, 220) || 'Unavailable';
       const lines = [
+        `Title: ${storyTitle}`,
+        `Tagline: ${storyTagline}`,
         `Fateweaver Story: ${S.genre || 'Unknown'} | ${S.era || 'Unknown'} | ${S.archetype || 'Unknown'}`,
         `Route: ${report.route}`,
         `Ending: ${copy.badge}`,
@@ -5303,6 +5307,9 @@
         const page = pages[pageId];
         if (!page) return;
         const beatNumber = Number(page.beat) || (idx + 1);
+        const imagePrompt = String(page.imagePrompt || page.image_prompt || '').replace(/\s+/g, ' ').trim();
+        lines.push(`Image Prompt: {{${imagePrompt || 'Unavailable'}}}`);
+        lines.push('');
         lines.push((page.text || '').trim());
 
         const nextPageId = pageIds[idx + 1];
