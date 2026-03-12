@@ -414,6 +414,7 @@
             <span>Fate Vector</span>
             <span class="hud-value hud-kicker-value" id="hud-path-label">—</span>
           </div>
+          <div class="hud-state" id="hud-state" aria-label="Tracked state"></div>
           <div id="story-circle" class="story-circle" aria-label="Story beat progress"></div>
         </div>
       </div>
@@ -473,10 +474,18 @@
         <p class="ending-logline" id="ending-logline"></p>
       </div>
 
+      <section class="ending-state ending-reveal" aria-label="Tracked state">
+        <div class="ending-state-head">
+          <span class="ending-state-title">Tracked State</span>
+          <span class="ending-state-note">What your choices left behind</span>
+        </div>
+        <div class="ending-state-list" id="ending-state-list"></div>
+      </section>
+
       <section class="ending-timeline ending-reveal" aria-label="Branch timeline">
         <div class="ending-timeline-head">
           <span class="ending-timeline-title">Branch Timeline</span>
-          <span class="ending-timeline-note">Key decisions and outcome impact</span>
+          <span class="ending-timeline-note">Key decisions and state impact</span>
         </div>
         <ol class="ending-timeline-list" id="ending-timeline-list"></ol>
       </section>

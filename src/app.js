@@ -116,6 +116,17 @@
     const BEAT_ICONS = ['◎', '✦', '➤', '⌕', '◇', '✕', '↺', '✧'];
     const ROMAN_BEATS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
     const CHOICE_FEEDBACK_HOLD_MS = 320;
+    const DEFAULT_STORY_STATE_VARIABLES = Object.freeze({
+      trust: Object.freeze({ label: 'Trust', kind: 'number', direction: 'higher', min: -3, max: 3, initial: 0, weight: 1.1, group: 'relationship' }),
+      fear: Object.freeze({ label: 'Fear', kind: 'number', direction: 'lower', min: 0, max: 4, initial: 1, weight: 1.0, group: 'pressure' }),
+      corruption: Object.freeze({ label: 'Corruption', kind: 'number', direction: 'lower', min: 0, max: 4, initial: 0, weight: 1.2, group: 'risk' }),
+      clues: Object.freeze({ label: 'Clues', kind: 'number', direction: 'higher', min: 0, max: 5, initial: 0, weight: 1.15, group: 'knowledge' }),
+    });
+    const LEGACY_STATE_EFFECTS_BY_OUTCOME = Object.freeze({
+      good: Object.freeze({ trust: 1, clues: 1, fear: -1 }),
+      neutral: Object.freeze({ clues: 1 }),
+      bad: Object.freeze({ fear: 1, corruption: 1, trust: -1 }),
+    });
     const ARCHETYPE_ROUTE_PREFIX = {
       'The Hero':        "Champion's",   'The Rebel':       "Rebel's",
       'The Outlaw':      "Outlaw's",     'The Explorer':    "Explorer's",
@@ -710,6 +721,7 @@
       story:         null,   // { title, tagline, pages: { page_1: {...}, ... } }
       currentPageId: 'page_1',
       choicesMade:   [],
+      storyState:    {},
       imageCache:    {},     // in-memory
       storySessionId: 0,
       imageMode:     'lambda', // 'lambda' | 'terrain'
@@ -3333,13 +3345,14 @@
       return {
         title: normalizeStoryText(storyObj?.title, 120),
         tagline: normalizeStoryText(storyObj?.tagline, 220),
+        state: storyStateConfigForStorage(storyObj),
       };
     }
 
     function storyFromStoredRecord(storedStory) {
       const pages = (storedStory?.pages && typeof storedStory.pages === 'object') ? storedStory.pages : {};
       const front = storyFrontMatterForStorage(storedStory);
-      return { title: front.title, tagline: front.tagline, pages };
+      return { title: front.title, tagline: front.tagline, state: front.state, pages };
     }
 
     function storyPagesForStorage(storyObj) {
@@ -3364,6 +3377,7 @@
         meta: { storyId, genre: S.genre, era: S.era, archetype: S.archetype, generatedAt },
         title: front.title,
         tagline: front.tagline,
+        state: front.state,
         pages,
       });
       void saveStoredStoryImages(storyObj, S.storySessionId, storyImageKeyForId(storyId), {
@@ -3415,6 +3429,7 @@
         },
         title: front.title,
         tagline: front.tagline,
+        state: front.state,
         pages: storyPagesForStorage(S.story),
       });
       void saveStoredStoryImages(S.story, S.storySessionId, storyImageKeyForId(storyId), {
@@ -3431,6 +3446,7 @@
       lsSet(key, {
         currentPage: S.currentPageId,
         choicesMade: S.choicesMade,
+        storyState: S.storyState,
         startedAt: S.storyRunStartedAt,
       });
     }
@@ -3713,6 +3729,7 @@
       S.story = storyFromStoredRecord(entry.story);
       S.currentPageId = targetPage;
       S.choicesMade = targetChoices;
+      S.storyState = buildStoryStateFromChoices(targetChoices, S.story);
       resetImageState();
       await hydrateStoredStoryImages(S.story, S.storySessionId, entry.imageKey);
       S.storyRunStartedAt = targetStartedAt;
@@ -4973,6 +4990,7 @@
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = prog?.currentPage || 'page_1';
           S.choicesMade   = prog?.choicesMade  || [];
+          S.storyState = buildStoryStateFromChoices(S.choicesMade, S.story);
           resetImageState();
           await hydrateStoredStoryImages(S.story, S.storySessionId, existingEntry.imageKey);
           S.storyRunStartedAt = Number(prog?.startedAt) || Date.now();
@@ -4989,6 +5007,7 @@
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = 'page_1';
           S.choicesMade = [];
+          S.storyState = createInitialStoryState(S.story);
           resetImageState();
           await hydrateStoredStoryImages(S.story, S.storySessionId, existingEntry.imageKey);
           S.storyRunStartedAt = Date.now();
@@ -5041,6 +5060,7 @@
         };
         S.currentPageId = 'page_1';
         S.choicesMade   = [];
+        S.storyState = createInitialStoryState(S.story);
         resetImageState();
         const pageOne = S.story?.pages?.page_1;
         loadingFirstImageTracked = Boolean(pageOne?.imagePrompt);
@@ -5449,6 +5469,7 @@
       const page = S.story?.pages?.[pageId];
       if (!page) { console.error('Page not found:', pageId); return; }
       S.currentPageId = pageId;
+      syncStoryState();
       saveProgress();
       const meta = gaPageMeta(pageId);
       const safePageId = gaSafe(pageId, 24);
@@ -5526,6 +5547,7 @@
       setText('hud-genre', S.genre || 'Genre');
       setText('hud-era', S.era || 'Era');
       setText('hud-archetype', S.archetype || 'Archetype');
+      renderHudState(S.story?.pages?.[S.currentPageId]);
       renderCircle(beat);
       S.hudBeat = beat;
       setHudBtnState();
@@ -5540,64 +5562,95 @@
       return a;
     }
 
-    function choiceOutcomeClass(outcome) {
-      const normalized = normalizeOutcome(outcome);
-      if (normalized === 'good' || normalized === 'neutral' || normalized === 'bad') {
-        return `choice-outcome-${normalized}`;
-      }
-      return 'choice-outcome-unknown';
+    function clampStateNumber(value, min, max) {
+      return Math.min(max, Math.max(min, value));
     }
 
-    function triggerChoiceRipple(btn, evt) {
-      if (!(btn instanceof HTMLElement)) return;
-      const rect = btn.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-
-      const ripple = document.createElement('span');
-      ripple.className = 'choice-ripple';
-
-      const pointerX = Number(evt?.clientX);
-      const pointerY = Number(evt?.clientY);
-      const useCenter = evt?.detail === 0 || !Number.isFinite(pointerX) || !Number.isFinite(pointerY);
-      const x = useCenter ? rect.width / 2 : pointerX - rect.left;
-      const y = useCenter ? rect.height / 2 : pointerY - rect.top;
-      const diameter = Math.max(rect.width, rect.height) * 1.16;
-
-      ripple.style.left = `${x.toFixed(1)}px`;
-      ripple.style.top = `${y.toFixed(1)}px`;
-      ripple.style.width = `${diameter.toFixed(1)}px`;
-      ripple.style.height = `${diameter.toFixed(1)}px`;
-
-      btn.appendChild(ripple);
-      ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+    function storyStateLabelFromKey(key) {
+      if (typeof key !== 'string' || !key) return 'State';
+      return key
+        .split('_')
+        .filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
     }
 
-    function renderChoices(page) {
-      const container = document.getElementById('choices');
-      container.innerHTML = '';
-      container.classList.remove('is-selecting');
-      S.choiceInFlight = false;
-      if (page.choices && page.choices.length > 0) {
-        shuffle(page.choices).forEach((c, idx) => {
-          const btn = document.createElement('button');
-          btn.className = 'choice-btn';
-          btn.style.setProperty('--choice-delay', `${idx * 70}ms`);
-          btn.innerHTML = `<span class="choice-index">${idx + 1}</span><span class="choice-label">${esc(c.label)}</span><span class="choice-arrow">→</span>`;
-          btn.onclick   = evt => makeChoice(c.nextPage, c.outcome, btn, evt);
-          container.appendChild(btn);
+    function storyStateConfig(story = S.story) {
+      const rawVariables = story?.state?.variables;
+      const normalized = {};
+
+      if (rawVariables && typeof rawVariables === 'object' && !Array.isArray(rawVariables)) {
+        Object.entries(rawVariables).forEach(([key, rawDef]) => {
+          if (!/^[a-z][a-z0-9_]{1,31}$/.test(key)) return;
+          if (!rawDef || typeof rawDef !== 'object' || Array.isArray(rawDef)) return;
+          const rawKind = typeof rawDef.kind === 'string' ? rawDef.kind.toLowerCase() : '';
+          const kind = rawKind === 'flag' ? 'flag' : (rawKind === 'number' ? 'number' : '');
+          if (!kind) return;
+          const direction = String(rawDef.direction || '').toLowerCase() === 'lower' ? 'lower' : 'higher';
+          const label = normalizeStoryText(rawDef.label, 32) || storyStateLabelFromKey(key);
+          const weight = clampStateNumber(Number(rawDef.weight) || 1, 0.25, 3);
+          const group = normalizeStoryText(rawDef.group, 24);
+
+          if (kind === 'flag') {
+            normalized[key] = { label, kind, direction, initial: Boolean(rawDef.initial), weight, ...(group ? { group } : {}) };
+            return;
+          }
+
+          const minCandidate = Number(rawDef.min);
+          const maxCandidate = Number(rawDef.max);
+          const safeMin = Number.isFinite(minCandidate) ? minCandidate : -3;
+          const safeMax = Number.isFinite(maxCandidate) ? maxCandidate : 3;
+          const min = Math.min(safeMin, safeMax - 1);
+          const max = Math.max(safeMax, min + 1);
+          const initial = clampStateNumber(Number(rawDef.initial) || 0, min, max);
+          normalized[key] = {
+            label,
+            kind,
+            direction,
+            min: Math.round(min * 100) / 100,
+            max: Math.round(max * 100) / 100,
+            initial: Math.round(initial * 100) / 100,
+            weight,
+            ...(group ? { group } : {}),
+          };
         });
-      } else {
-        // Final page — show "See Fate" button
-        const btn = document.createElement('button');
-        btn.className = 'choice-btn ending-btn';
-        btn.style.setProperty('--choice-delay', '0ms');
-        btn.innerHTML = `<span class="choice-index">✦</span><span class="choice-label">See Your Fate</span><span class="choice-arrow">→</span>`;
-        btn.onclick   = () => showEnding(determineEnding(state_currentId()));
-        container.appendChild(btn);
       }
+
+      if (Object.keys(normalized).length) return normalized;
+      const fallback = {};
+      Object.entries(DEFAULT_STORY_STATE_VARIABLES).forEach(([key, def]) => {
+        fallback[key] = { ...def };
+      });
+      return fallback;
     }
 
-    function state_currentId() { return S.currentPageId; }
+    function storyStateConfigForStorage(story = S.story) {
+      return { variables: storyStateConfig(story) };
+    }
+
+    function createInitialStoryState(story = S.story) {
+      const defs = storyStateConfig(story);
+      const state = {};
+      Object.entries(defs).forEach(([key, def]) => {
+        state[key] = def.kind === 'flag' ? Boolean(def.initial) : clampStateNumber(Number(def.initial) || 0, Number(def.min), Number(def.max));
+      });
+      return state;
+    }
+
+    function normalizeStoryStateSnapshot(rawState = {}, story = S.story) {
+      const defs = storyStateConfig(story);
+      const state = {};
+      Object.entries(defs).forEach(([key, def]) => {
+        if (def.kind === 'flag') {
+          state[key] = Boolean(rawState?.[key] ?? def.initial);
+          return;
+        }
+        const rawValue = Number(rawState?.[key]);
+        const value = Number.isFinite(rawValue) ? rawValue : Number(def.initial) || 0;
+        state[key] = clampStateNumber(Math.round(value * 100) / 100, Number(def.min), Number(def.max));
+      });
+      return state;
+    }
 
     function normalizeOutcome(value) {
       if (typeof value !== 'string') return '';
@@ -5636,16 +5689,293 @@
       return inferOutcomeFromPageId(toPageId) || inferOutcomeFromPageId(fromPageId);
     }
 
-    async function makeChoice(nextPageId, outcome, sourceBtn = null, evt = null) {
-      if (!nextPageId || S.choiceInFlight) return;
+    function inferLegacyChoiceEffects(choiceLike, story = S.story) {
+      const defs = storyStateConfig(story);
+      const effects = {};
+      const outcome = resolveChoiceOutcome(choiceLike, choiceLike?.from || '');
+      const template = LEGACY_STATE_EFFECTS_BY_OUTCOME[outcome] || null;
+
+      if (template) {
+        Object.entries(template).forEach(([key, value]) => {
+          if (defs[key]?.kind === 'number') effects[key] = value;
+        });
+      }
+
+      if (Object.keys(effects).length) return effects;
+
+      const fallbackKey = Object.keys(defs).find(key => defs[key]?.kind === 'number');
+      if (fallbackKey) effects[fallbackKey] = 1;
+      return effects;
+    }
+
+    function normalizeChoiceEffects(rawEffects, choiceLike = null, story = S.story) {
+      const defs = storyStateConfig(story);
+      const effects = {};
+
+      if (rawEffects && typeof rawEffects === 'object' && !Array.isArray(rawEffects)) {
+        Object.entries(rawEffects).forEach(([key, rawValue]) => {
+          const def = defs[key];
+          if (!def) return;
+          if (def.kind === 'flag') {
+            effects[key] = Boolean(rawValue);
+            return;
+          }
+          const delta = Number(rawValue);
+          if (!Number.isFinite(delta) || delta === 0) return;
+          effects[key] = clampStateNumber(Math.round(delta * 100) / 100, -2, 2);
+        });
+      }
+
+      return Object.keys(effects).length ? effects : inferLegacyChoiceEffects(choiceLike, story);
+    }
+
+    function resolveChoiceRecord(rawChoice, fallbackFromPageId = '', story = S.story) {
+      const choice = (typeof rawChoice === 'string') ? { to: rawChoice } : (rawChoice || {});
+      const fromPageId = (typeof choice.from === 'string' && choice.from) ? choice.from : fallbackFromPageId;
+      const toPageId = (typeof choice.to === 'string' && choice.to)
+        ? choice.to
+        : ((typeof choice.nextPage === 'string' && choice.nextPage) ? choice.nextPage : '');
+      const fromPage = story?.pages?.[fromPageId];
+      const matchedChoice = Array.isArray(fromPage?.choices)
+        ? fromPage.choices.find(option => option?.nextPage === toPageId)
+        : null;
+      const label = normalizeStoryText(choice.label, 180)
+        || normalizeStoryText(matchedChoice?.label, 180)
+        || '';
+      const outcome = resolveChoiceOutcome({
+        ...matchedChoice,
+        ...choice,
+        from: fromPageId,
+        to: toPageId,
+      }, fromPageId);
+      const effects = normalizeChoiceEffects(choice.effects ?? matchedChoice?.effects, {
+        ...matchedChoice,
+        ...choice,
+        from: fromPageId,
+        to: toPageId,
+        nextPage: toPageId,
+        outcome,
+      }, story);
+
+      return { fromPageId, toPageId, label, matchedChoice, outcome, effects };
+    }
+
+    function applyChoiceEffects(baseState, effects, story = S.story) {
+      const defs = storyStateConfig(story);
+      const nextState = normalizeStoryStateSnapshot(baseState, story);
+      Object.entries(effects || {}).forEach(([key, value]) => {
+        const def = defs[key];
+        if (!def) return;
+        if (def.kind === 'flag') {
+          nextState[key] = Boolean(value);
+          return;
+        }
+        const current = Number(nextState[key]) || 0;
+        const delta = Number(value);
+        if (!Number.isFinite(delta)) return;
+        nextState[key] = clampStateNumber(Math.round((current + delta) * 100) / 100, Number(def.min), Number(def.max));
+      });
+      return nextState;
+    }
+
+    function buildStoryStateFromChoices(choices = S.choicesMade, story = S.story) {
+      let state = createInitialStoryState(story);
+      let priorPageId = 'page_1';
+      (choices || []).forEach(rawChoice => {
+        const record = resolveChoiceRecord(rawChoice, priorPageId, story);
+        state = applyChoiceEffects(state, record.effects, story);
+        if (record.toPageId) priorPageId = record.toPageId;
+      });
+      return normalizeStoryStateSnapshot(state, story);
+    }
+
+    function syncStoryState() {
+      S.storyState = buildStoryStateFromChoices(S.choicesMade, S.story);
+      return S.storyState;
+    }
+
+    function storyStateValueTone(value, def) {
+      if (!def) return 'neutral';
+      if (def.kind === 'flag') {
+        const oriented = def.direction === 'lower' ? !value : Boolean(value);
+        return oriented ? 'good' : 'bad';
+      }
+      const range = Math.max(1, Number(def.max) - Number(def.min));
+      const normalized = clampStateNumber((Number(value) - Number(def.min)) / range, 0, 1);
+      const oriented = def.direction === 'lower' ? (1 - normalized) : normalized;
+      if (oriented >= 0.67) return 'good';
+      if (oriented <= 0.33) return 'bad';
+      return 'neutral';
+    }
+
+    function pageStateRefs(page, story = S.story, state = S.storyState) {
+      const defs = storyStateConfig(story);
+      const explicit = Array.isArray(page?.stateRefs)
+        ? page.stateRefs.filter(key => defs[key]).slice(0, 3)
+        : [];
+      if (explicit.length) return explicit;
+
+      const snapshot = normalizeStoryStateSnapshot(state, story);
+      const ranked = Object.keys(defs)
+        .map(key => {
+          const def = defs[key];
+          const importance = def.kind === 'flag'
+            ? (snapshot[key] ? (Number(def.weight) || 1) + 0.75 : 0)
+            : Math.abs((Number(snapshot[key]) || 0) - (Number(def.initial) || 0)) * (Number(def.weight) || 1);
+          return { key, importance };
+        })
+        .sort((a, b) => b.importance - a.importance || a.key.localeCompare(b.key))
+        .map(entry => entry.key);
+      return ranked.slice(0, 3);
+    }
+
+    function formatStateValue(def, value) {
+      if (!def) return '—';
+      if (def.kind === 'flag') return value ? 'Secured' : 'Missing';
+      const numeric = Number(value) || 0;
+      const rounded = Number.isInteger(numeric) ? numeric : Math.round(numeric * 10) / 10;
+      return rounded > 0 ? `+${rounded}` : String(rounded);
+    }
+
+    function renderHudState(page) {
+      const container = document.getElementById('hud-state');
+      if (!container) return;
+      const defs = storyStateConfig(S.story);
+      const state = syncStoryState();
+      const refs = pageStateRefs(page, S.story, state);
+
+      container.innerHTML = '';
+      refs.forEach(key => {
+        const def = defs[key];
+        if (!def) return;
+        const value = state[key];
+        const chip = document.createElement('span');
+        chip.className = `hud-state-chip ${storyStateValueTone(value, def)}`;
+        chip.innerHTML = `<span class="hud-state-label">${esc(def.label)}</span><span class="hud-state-value">${esc(formatStateValue(def, value))}</span>`;
+        container.appendChild(chip);
+      });
+    }
+
+    function stateEffectScore(effects, story = S.story) {
+      const defs = storyStateConfig(story);
+      let score = 0;
+      let hasAny = false;
+
+      Object.entries(effects || {}).forEach(([key, value]) => {
+        const def = defs[key];
+        if (!def) return;
+        hasAny = true;
+        const direction = def.direction === 'lower' ? -1 : 1;
+        const weight = Number(def.weight) || 1;
+        if (def.kind === 'flag') {
+          score += (value ? 1 : -1) * direction * weight;
+          return;
+        }
+        score += (Number(value) || 0) * direction * weight;
+      });
+
+      return { score, hasAny };
+    }
+
+    function stateImpactClass(effects, fallbackOutcome = '') {
+      const { score, hasAny } = stateEffectScore(effects, S.story);
+      if (!hasAny) return normalizeOutcome(fallbackOutcome) || 'unknown';
+      if (score > 0.2) return 'good';
+      if (score < -0.2) return 'bad';
+      return 'neutral';
+    }
+
+    function choiceOutcomeClass(outcome) {
+      const normalized = normalizeOutcome(outcome);
+      if (normalized === 'good' || normalized === 'neutral' || normalized === 'bad') {
+        return `choice-outcome-${normalized}`;
+      }
+      return 'choice-outcome-unknown';
+    }
+
+    function formatChoiceEffectsSummary(effects, options = {}) {
+      const defs = storyStateConfig(options.story || S.story);
+      const parts = [];
+      const maxItems = Number(options.maxItems) || 3;
+
+      Object.entries(effects || {}).forEach(([key, value]) => {
+        const def = defs[key];
+        if (!def) return;
+        if (def.kind === 'flag') {
+          parts.push(value ? `Secured ${def.label}` : `Lost ${def.label}`);
+          return;
+        }
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric === 0) return;
+        const rounded = Number.isInteger(numeric) ? numeric : Math.round(numeric * 10) / 10;
+        const sign = rounded > 0 ? '+' : '';
+        parts.push(`${def.label} ${sign}${rounded}`);
+      });
+
+      if (!parts.length) return 'Impact unresolved';
+      if (parts.length <= maxItems) return parts.join(' • ');
+      return `${parts.slice(0, maxItems).join(' • ')} • +${parts.length - maxItems} more`;
+    }
+
+    function triggerChoiceRipple(btn, evt) {
+      if (!(btn instanceof HTMLElement)) return;
+      const rect = btn.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const ripple = document.createElement('span');
+      ripple.className = 'choice-ripple';
+
+      const pointerX = Number(evt?.clientX);
+      const pointerY = Number(evt?.clientY);
+      const useCenter = evt?.detail === 0 || !Number.isFinite(pointerX) || !Number.isFinite(pointerY);
+      const x = useCenter ? rect.width / 2 : pointerX - rect.left;
+      const y = useCenter ? rect.height / 2 : pointerY - rect.top;
+      const diameter = Math.max(rect.width, rect.height) * 1.16;
+
+      ripple.style.left = `${x.toFixed(1)}px`;
+      ripple.style.top = `${y.toFixed(1)}px`;
+      ripple.style.width = `${diameter.toFixed(1)}px`;
+      ripple.style.height = `${diameter.toFixed(1)}px`;
+
+      btn.appendChild(ripple);
+      ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+    }
+
+    function renderChoices(page) {
+      const container = document.getElementById('choices');
+      container.innerHTML = '';
+      container.classList.remove('is-selecting');
+      S.choiceInFlight = false;
+      if (page.choices && page.choices.length > 0) {
+        shuffle(page.choices).forEach((c, idx) => {
+          const effectClass = choiceOutcomeClass(stateImpactClass(normalizeChoiceEffects(c.effects, c), c.outcome));
+          const btn = document.createElement('button');
+          btn.className = `choice-btn ${effectClass}`;
+          btn.style.setProperty('--choice-delay', `${idx * 70}ms`);
+          btn.innerHTML = `<span class="choice-index">${idx + 1}</span><span class="choice-label">${esc(c.label)}</span><span class="choice-arrow">→</span>`;
+          btn.setAttribute('aria-label', c.label);
+          btn.onclick = evt => makeChoice(c, btn, evt);
+          container.appendChild(btn);
+        });
+      } else {
+        // Final page — show "See Fate" button
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn ending-btn';
+        btn.style.setProperty('--choice-delay', '0ms');
+        btn.innerHTML = `<span class="choice-index">✦</span><span class="choice-label">See Your Fate</span><span class="choice-arrow">→</span>`;
+        btn.onclick   = () => showEnding(determineEnding(state_currentId()));
+        container.appendChild(btn);
+      }
+    }
+
+    function state_currentId() { return S.currentPageId; }
+
+    async function makeChoice(choiceLike, sourceBtn = null, evt = null) {
+      const record = resolveChoiceRecord({ ...choiceLike, from: S.currentPageId }, S.currentPageId);
+      if (!record.toPageId || S.choiceInFlight) return;
       S.choiceInFlight = true;
 
-      const resolvedOutcome = resolveChoiceOutcome({
-        from: S.currentPageId,
-        to: nextPageId,
-        outcome,
-      });
-      const visualOutcomeClass = choiceOutcomeClass(resolvedOutcome || outcome);
+      const visualOutcomeClass = choiceOutcomeClass(stateImpactClass(record.effects, record.outcome));
       const container = document.getElementById('choices');
 
       if (container) {
@@ -5671,23 +6001,29 @@
 
       trackEvent('story_choice_made', gaStoryParams({
         from_page: gaSafe(S.currentPageId, 24),
-        to_page: gaSafe(nextPageId, 24),
-        outcome: gaSafe(resolvedOutcome || outcome || 'unknown', 24),
+        to_page: gaSafe(record.toPageId, 24),
+        outcome: gaSafe(record.outcome || 'unknown', 24),
+        state_impact: gaSafe(stateImpactClass(record.effects, record.outcome), 24),
         choice_depth: S.choicesMade.length + 1,
       }));
-      S.choicesMade.push({ from: S.currentPageId, to: nextPageId, outcome: resolvedOutcome || null });
+      S.choicesMade.push({
+        from: S.currentPageId,
+        to: record.toPageId,
+        label: record.label || '',
+        outcome: record.outcome || null,
+        effects: record.effects,
+      });
+      S.storyState = applyChoiceEffects(S.storyState, record.effects, S.story);
       try {
         await new Promise(resolve => setTimeout(resolve, CHOICE_FEEDBACK_HOLD_MS));
-        renderPage(nextPageId);
+        renderPage(record.toPageId);
       } finally {
         S.choiceInFlight = false;
       }
     }
 
     function determineEnding(pageId) {
-      if (pageId.includes('neutral')) return 'neutral';
-      if (pageId.includes('bad'))     return 'bad';
-      return 'good';
+      return storyStateAssessment(syncStoryState(), pageId || S.currentPageId).type;
     }
 
     function endingCopyFor(type) {
@@ -5714,84 +6050,130 @@
       return `${mm}:${ss}`;
     }
 
-    function endingOutcomeTally() {
-      const tally = { good: 0, neutral: 0, bad: 0, unknown: 0 };
-      let priorPageId = 'page_1';
-      (S.choicesMade || []).forEach(rawChoice => {
-        const choice = (typeof rawChoice === 'string')
-          ? { from: priorPageId, to: rawChoice }
-          : (rawChoice || {});
-        const outcome = resolveChoiceOutcome(choice, priorPageId);
-        if (outcome === 'good' || outcome === 'neutral' || outcome === 'bad') {
-          tally[outcome] += 1;
-        } else {
-          tally.unknown += 1;
-        }
-        const toPageId = (typeof choice.to === 'string' && choice.to)
-          ? choice.to
-          : ((typeof choice.nextPage === 'string' && choice.nextPage) ? choice.nextPage : '');
-        if (toPageId) priorPageId = toPageId;
-      });
-      return tally;
+    function storyStateAssessment(state = S.storyState, pageId = S.currentPageId, story = S.story) {
+      const defs = storyStateConfig(story);
+      const snapshot = normalizeStoryStateSnapshot(state, story);
+      const metrics = Object.entries(defs).map(([key, def]) => {
+        const value = snapshot[key];
+        const oriented = (() => {
+          if (def.kind === 'flag') {
+            const raw = value ? 1 : 0;
+            return def.direction === 'lower' ? (1 - raw) : raw;
+          }
+          const range = Math.max(1, Number(def.max) - Number(def.min));
+          const normalized = clampStateNumber((Number(value) - Number(def.min)) / range, 0, 1);
+          return def.direction === 'lower' ? (1 - normalized) : normalized;
+        })();
+        const swing = def.kind === 'flag'
+          ? (value ? 1 : 0)
+          : Math.abs((Number(value) || 0) - (Number(def.initial) || 0));
+        const weight = Number(def.weight) || 1;
+        return {
+          key,
+          def,
+          label: def.label,
+          value,
+          oriented,
+          tone: storyStateValueTone(value, def),
+          weight,
+          swing,
+          influence: swing * weight,
+        };
+      }).sort((a, b) => b.influence - a.influence || a.label.localeCompare(b.label));
+
+      const totalWeight = metrics.reduce((sum, metric) => sum + metric.weight, 0) || 1;
+      const baseScore = Math.round((metrics.reduce((sum, metric) => sum + (metric.oriented * metric.weight), 0) / totalWeight) * 100);
+      const pathNudge = (() => {
+        const outcome = inferOutcomeFromPageId(pageId || '');
+        if (outcome === 'good') return 6;
+        if (outcome === 'bad') return -6;
+        return 0;
+      })();
+      const score = Math.max(8, Math.min(99, baseScore + pathNudge));
+      const type = score >= 68 ? 'good' : score <= 40 ? 'bad' : 'neutral';
+
+      return { score, type, metrics, snapshot };
     }
 
-    function endingImpactCopyFor(outcome) {
-      if (outcome === 'good') {
-        return {
-          label: 'Outcome Boost',
-          detail: `Shifted toward ${endingRecapLabel('good')}`,
-        };
+    function endingRank(score) {
+      if (score >= 95) return 'Mythic';
+      if (score >= 85) return 'Legendary';
+      if (score >= 70) return 'Elite';
+      if (score >= 50) return 'Survivor';
+      return 'Last Stand';
+    }
+
+    function endingStateRecap(page, assessment) {
+      const custom = normalizeStoryText(page?.endingSummary, 220);
+      if (custom) return custom;
+
+      const top = assessment.metrics.slice(0, 2);
+      if (!top.length) return 'The last state of the story is obscured.';
+
+      const summary = top.map(metric => `${metric.label} ${formatStateValue(metric.def, metric.value)}`).join(' and ');
+      if (assessment.type === 'good') {
+        return `${summary} carried the last turn into a hard-won victory.`;
       }
-      if (outcome === 'neutral') {
-        return {
-          label: 'Outcome Steady',
-          detail: `Held near ${endingRecapLabel('neutral')}`,
-        };
+      if (assessment.type === 'bad') {
+        return `${summary} twisted the ending toward irreversible loss.`;
       }
-      if (outcome === 'bad') {
-        return {
-          label: 'Outcome Risk',
-          detail: `Shifted toward ${endingRecapLabel('bad')}`,
-        };
-      }
-      return {
-        label: 'Outcome Unknown',
-        detail: 'Impact unresolved',
-      };
+      return `${summary} left the ending balanced on a compromise that still hurts.`;
+    }
+
+    function renderEndingState(assessment) {
+      const listEl = document.getElementById('ending-state-list');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+
+      assessment.metrics.forEach(metric => {
+        const item = document.createElement('article');
+        item.className = `ending-state-item ${metric.tone}`;
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'ending-state-item-label';
+        labelEl.textContent = metric.label;
+
+        const valueEl = document.createElement('span');
+        valueEl.className = 'ending-state-item-value';
+        valueEl.textContent = formatStateValue(metric.def, metric.value);
+
+        const detailEl = document.createElement('p');
+        detailEl.className = 'ending-state-item-detail';
+        if (metric.def.kind === 'flag') {
+          detailEl.textContent = metric.value
+            ? 'This stayed with you into the final scene.'
+            : 'This never made it to the final scene.';
+        } else {
+          detailEl.textContent = `${metric.def.direction === 'lower' ? 'Kept under control' : 'Built across the run'} • ${metric.def.group || 'tracked state'}`;
+        }
+
+        item.appendChild(labelEl);
+        item.appendChild(valueEl);
+        item.appendChild(detailEl);
+        listEl.appendChild(item);
+      });
     }
 
     function endingTimelineEntries() {
-      const pages = S.story?.pages || {};
       const entries = [];
       let priorPageId = 'page_1';
 
       (S.choicesMade || []).forEach((rawChoice, idx) => {
-        const choice = (typeof rawChoice === 'string')
-          ? { from: priorPageId, to: rawChoice }
-          : (rawChoice || {});
-        const fromPageId = (typeof choice.from === 'string' && choice.from) ? choice.from : priorPageId;
-        const toPageId = (typeof choice.to === 'string' && choice.to)
-          ? choice.to
-          : ((typeof choice.nextPage === 'string' && choice.nextPage) ? choice.nextPage : '');
-        if (!toPageId) return;
+        const record = resolveChoiceRecord(rawChoice, priorPageId);
+        if (!record.toPageId) return;
 
-        const fromPage = pages[fromPageId];
-        const matchedChoice = Array.isArray(fromPage?.choices)
-          ? fromPage.choices.find(option => option?.nextPage === toPageId)
-          : null;
-        const decision = normalizeStoryText(matchedChoice?.label, 180)
-          || `Advanced to ${resumeCheckpointLabel(toPageId)}`;
-        const outcome = resolveChoiceOutcome(choice, fromPageId) || 'unknown';
-        const fromBeat = Number(gaPageMeta(fromPageId).beat) || (idx + 1);
+        const decision = record.label || `Advanced to ${resumeCheckpointLabel(record.toPageId)}`;
+        const fromBeat = Number(gaPageMeta(record.fromPageId).beat) || (idx + 1);
         const beat = Math.max(1, Math.min(BEAT_NAMES.length, fromBeat));
 
         entries.push({
           beat,
           decision,
-          outcome,
+          impactClass: stateImpactClass(record.effects, record.outcome),
+          impactText: formatChoiceEffectsSummary(record.effects, { maxItems: 3 }),
         });
 
-        priorPageId = toPageId;
+        priorPageId = record.toPageId;
       });
 
       return entries;
@@ -5821,7 +6203,6 @@
 
       const frag = document.createDocumentFragment();
       entries.forEach(entry => {
-        const impact = endingImpactCopyFor(entry.outcome);
         const item = document.createElement('li');
         item.className = 'ending-timeline-item';
 
@@ -5834,8 +6215,8 @@
         decisionEl.textContent = entry.decision;
 
         const impactEl = document.createElement('span');
-        impactEl.className = `ending-timeline-impact ${entry.outcome}`;
-        impactEl.textContent = `${impact.label} • ${impact.detail}`;
+        impactEl.className = `ending-timeline-impact ${entry.impactClass}`;
+        impactEl.textContent = entry.impactText;
 
         item.appendChild(stepEl);
         item.appendChild(decisionEl);
@@ -5846,45 +6227,30 @@
       listEl.appendChild(frag);
     }
 
-    function endingScore(type, tally) {
-      const total = tally.good + tally.neutral + tally.bad;
-      const weighted = total ? ((tally.good * 100) + (tally.neutral * 58) + (tally.bad * 26)) / total : 50;
-      const bias = type === 'good' ? 12 : type === 'bad' ? -12 : 0;
-      return Math.max(8, Math.min(99, Math.round(weighted + bias)));
-    }
-
-    function endingRank(score) {
-      if (score >= 95) return 'Mythic';
-      if (score >= 85) return 'Legendary';
-      if (score >= 70) return 'Elite';
-      if (score >= 50) return 'Survivor';
-      return 'Last Stand';
-    }
-
-    function endingReport(type) {
-      const tally = endingOutcomeTally();
-      const score = endingScore(type, tally);
-      const rank = endingRank(score);
+    function endingReport(type, assessment = storyStateAssessment(syncStoryState(), S.currentPageId)) {
+      const resolvedType = type || assessment.type;
+      const rank = endingRank(assessment.score);
       const maxDecisions = Math.max(1, BEAT_NAMES.length - 1);
       const runMs = S.storyRunStartedAt ? (Date.now() - S.storyRunStartedAt) : 0;
       const meta = gaPageMeta(S.currentPageId || '');
-      const path = meta.path || type || 'good';
-      const status = endingStatusFor(type);
-      const recapParts = [
-        `${tally.good} ${endingRecapLabel('good')}`,
-        `${tally.neutral} ${endingRecapLabel('neutral')}`,
-        `${tally.bad} ${endingRecapLabel('bad')}`,
-      ];
-      if (tally.unknown > 0) recapParts.push(`${tally.unknown} unresolved`);
+      const path = meta.path || resolvedType || 'good';
+      const status = endingStatusFor(resolvedType);
+      const page = S.story?.pages?.[S.currentPageId];
+      const focus = assessment.metrics
+        .slice(0, 3)
+        .map(metric => `${metric.label} ${formatStateValue(metric.def, metric.value)}`)
+        .join(' • ');
       return {
         kicker: status.kicker,
         route: routeLabel(S.genre, S.archetype, path),
         decisions: `${S.choicesMade.length}/${maxDecisions}`,
         runtime: formatRuntime(runMs),
         alignment: `${status.alignment} • ${rank}`,
-        score,
+        score: assessment.score,
         rank,
-        recap: `${recapParts.join(' • ')} decisions`,
+        recap: endingStateRecap(page, assessment),
+        focus,
+        assessment,
       };
     }
 
@@ -5909,6 +6275,7 @@
         `Fateweaver Story: ${S.genre || 'Unknown'} | ${S.era || 'Unknown'} | ${S.archetype || 'Unknown'}`,
         `Route: ${report.route}`,
         `Ending: ${copy.badge}`,
+        `Tracked State: ${report.focus || 'Unavailable'}`,
         '',
       ];
 
@@ -5920,7 +6287,6 @@
       pageIds.forEach((pageId, idx) => {
         const page = pages[pageId];
         if (!page) return;
-        const beatNumber = Number(page.beat) || (idx + 1);
         const imagePrompt = String(page.imagePrompt || page.image_prompt || '').replace(/\s+/g, ' ').trim();
         lines.push(`Image Prompt: {{${imagePrompt || 'Unavailable'}}}`);
         lines.push('');
@@ -5928,8 +6294,9 @@
 
         const nextPageId = pageIds[idx + 1];
         if (nextPageId && Array.isArray(page.choices)) {
-          const chosen = page.choices.find(choice => choice?.nextPage === nextPageId);
-          if (chosen?.label) lines.push(`\nChoice: ${chosen.label}`);
+          const record = resolveChoiceRecord({ from: pageId, to: nextPageId });
+          if (record.label) lines.push(`\nChoice: ${record.label}`);
+          lines.push(`Impact: ${formatChoiceEffectsSummary(record.effects, { maxItems: 3 })}`);
         }
 
         if (idx < pageIds.length - 1) lines.push('');
@@ -6004,29 +6371,18 @@
       const metaByBeat = Array.from({ length: BEAT_NAMES.length }, () => null);
       let priorPageId = 'page_1';
       (S.choicesMade || []).forEach((rawChoice, idx) => {
-        const choice = (typeof rawChoice === 'string')
-          ? { from: priorPageId, to: rawChoice }
-          : (rawChoice || {});
-        const fromPageId = (typeof choice.from === 'string' && choice.from) ? choice.from : priorPageId;
-        const toPageId = (typeof choice.to === 'string' && choice.to)
-          ? choice.to
-          : ((typeof choice.nextPage === 'string' && choice.nextPage) ? choice.nextPage : '');
-        if (!toPageId) return;
-
-        const fromPage = S.story?.pages?.[fromPageId];
-        const matchedChoice = Array.isArray(fromPage?.choices)
-          ? fromPage.choices.find(option => option?.nextPage === toPageId)
-          : null;
-        const choiceText = normalizeStoryText(matchedChoice?.label, 180)
-          || normalizeStoryText(`Advanced to ${resumeCheckpointLabel(toPageId)}`, 180);
-        const outcome = resolveChoiceOutcome(choice, fromPageId);
-        const outcomeClass = (outcome === 'good' || outcome === 'neutral' || outcome === 'bad')
-          ? `outcome-${outcome}`
+        const record = resolveChoiceRecord(rawChoice, priorPageId);
+        if (!record.toPageId) return;
+        const choiceText = record.label || normalizeStoryText(`Advanced to ${resumeCheckpointLabel(record.toPageId)}`, 180);
+        const impactText = formatChoiceEffectsSummary(record.effects, { maxItems: 2 });
+        const impactClass = stateImpactClass(record.effects, record.outcome);
+        const outcomeClass = (impactClass === 'good' || impactClass === 'neutral' || impactClass === 'bad')
+          ? `outcome-${impactClass}`
           : 'outcome-unknown';
-        const beatNumber = Number(gaPageMeta(fromPageId).beat) || (idx + 1);
+        const beatNumber = Number(gaPageMeta(record.fromPageId).beat) || (idx + 1);
         const beatIndex = Math.max(0, Math.min(BEAT_NAMES.length - 1, beatNumber - 1));
-        metaByBeat[beatIndex] = { outcomeClass, choiceText };
-        if (toPageId) priorPageId = toPageId;
+        metaByBeat[beatIndex] = { outcomeClass, choiceText: `${choiceText} • ${impactText}` };
+        priorPageId = record.toPageId;
       });
       return metaByBeat;
     }
@@ -6325,8 +6681,10 @@
 
       sigil.className = 'ending-sigil';
       badge.className = 'ending-badge';
-      const copy = endingCopyFor(type);
-      const report = endingReport(type);
+      const assessment = storyStateAssessment(syncStoryState(), S.currentPageId);
+      const resolvedType = type || assessment.type;
+      const copy = endingCopyFor(resolvedType);
+      const report = endingReport(resolvedType, assessment);
 
       if (kicker) kicker.textContent = report.kicker;
       badge.textContent = copy.badge;
@@ -6338,13 +6696,14 @@
       if (alignment) alignment.textContent = report.alignment;
       if (score) score.textContent = String(report.score).padStart(3, '0');
       if (logline) logline.textContent = report.recap;
+      renderEndingState(assessment);
       renderEndingTimeline();
 
-      if (type === 'neutral') {
+      if (resolvedType === 'neutral') {
         sigil.textContent = '◎';
         sigil.classList.add('neutral');
         badge.classList.add('neutral');
-      } else if (type === 'bad') {
+      } else if (resolvedType === 'bad') {
         sigil.textContent = '✕';
         sigil.classList.add('bad');
         badge.classList.add('bad');
@@ -6354,11 +6713,11 @@
 
       if (endingScreen) {
         endingScreen.classList.remove('ending-good', 'ending-neutral', 'ending-bad', 'is-revealed');
-        endingScreen.classList.add(`ending-${type}`);
+        endingScreen.classList.add(`ending-${resolvedType}`);
         endingScreen.style.setProperty('--ending-meter-target', `${report.score}%`);
       }
 
-      S.lastEndingType = type;
+      S.lastEndingType = resolvedType;
       syncEndingBackdrop(S.currentPageId);
       resetEndingShareButton();
       showScreen('ending');
@@ -6368,13 +6727,13 @@
         endingScreen.classList.add('is-revealed');
       }
 
-      saveCompletedStory(type);
+      saveCompletedStory(resolvedType);
       const progKey = progressKey();
       if (progKey) localStorage.removeItem(progKey);
       renderSetupHistory();
 
       trackEvent('ending_viewed', gaStoryParams({
-        ending_type: gaSafe(type, 16),
+        ending_type: gaSafe(resolvedType, 16),
         total_choices: S.choicesMade.length,
         final_page: gaSafe(S.currentPageId, 24),
         ending_score: report.score,
@@ -6426,6 +6785,7 @@
       if (progKey) localStorage.removeItem(progKey);
       S.currentPageId = 'page_1';
       S.choicesMade   = [];
+      S.storyState = createInitialStoryState(S.story);
       S.storyRunStartedAt = Date.now();
       showScreen('game');
       renderPage('page_1');
@@ -6468,6 +6828,7 @@
         S.storyStorageId = '';
         resetImageState();
         S.currentPageId = 'page_1'; S.choicesMade = [];
+        S.storyState = {};
         S.storyRunStartedAt = 0;
         S.lastEndingType = 'good';
         S.genre = null; S.era = null; S.archetype = null;
