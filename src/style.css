@@ -3251,6 +3251,7 @@ body {
 .ending-reveal {
   opacity: 0;
   transform: translateY(16px) scale(0.986);
+  filter: blur(6px);
 }
 #screen-ending.is-revealed .ending-reveal {
   animation: endingReveal 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -3262,7 +3263,7 @@ body {
 }
 
 .ending-kicker {
-  --ending-delay: 70ms;
+  --ending-delay: 620ms;
   font-family: var(--font-signal);
   font-size: 0.74rem;
   letter-spacing: 0.28em;
@@ -3271,22 +3272,43 @@ body {
 }
 
 .ending-sigil {
-  --ending-delay: 140ms;
+  --ending-delay: 100ms;
   font-size: clamp(2.5rem, 6vw, 3.8rem);
   color: var(--ending-accent);
   text-shadow: 0 0 36px var(--ending-accent-soft), 0 0 84px var(--ending-accent-soft);
   line-height: 1;
-  animation: endingSigilPulse 2.8s ease-in-out infinite;
 }
 .ending-sigil.neutral { color: #a99a74; }
 .ending-sigil.bad     { color: #d96464; }
+#screen-ending.is-revealed .ending-sigil.ending-reveal {
+  animation:
+    endingSigilReveal 640ms cubic-bezier(0.16, 1, 0.3, 1) var(--ending-delay, 100ms) both,
+    endingSigilPulse 2.8s ease-in-out calc(var(--ending-delay, 100ms) + 640ms) infinite;
+}
+@keyframes endingSigilReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.7) rotate(-8deg);
+    filter: blur(10px);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.18) rotate(0deg);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
 @keyframes endingSigilPulse {
   0%, 100% { opacity: 0.7; transform: scale(1); }
   50%       { opacity: 1; transform: scale(1.07); }
 }
 
 .ending-badge {
-  --ending-delay: 200ms;
+  --ending-delay: 700ms;
   font-family: var(--font-title);
   font-size: clamp(1.4rem, 4.8vw, 3rem);
   font-weight: 700;
@@ -3297,9 +3319,27 @@ body {
 }
 .ending-badge.neutral { color: #a99a74; }
 .ending-badge.bad     { color: #d96464; }
+#screen-ending.is-revealed .ending-badge.ending-reveal {
+  animation: endingTitleRise 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--ending-delay, 700ms);
+}
+@keyframes endingTitleRise {
+  0% {
+    opacity: 0;
+    transform: translateY(28px) scale(0.94);
+    filter: blur(8px);
+    letter-spacing: 0.2em;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    letter-spacing: 0.16em;
+  }
+}
 
 .ending-sub {
-  --ending-delay: 290ms;
+  --ending-delay: 860ms;
   font-family: var(--font-body);
   font-style: italic;
   font-size: clamp(0.96rem, 2.2vw, 1.28rem);
@@ -3309,13 +3349,17 @@ body {
 }
 
 .ending-stats {
-  --ending-delay: 400ms;
+  --ending-delay: 1080ms;
+  --ending-metrics-delay: 1240ms;
   width: 100%;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.54rem;
 }
 .ending-stat {
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  filter: blur(5px);
   display: flex;
   flex-direction: column;
   gap: 0.28rem;
@@ -3323,6 +3367,26 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(0, 0, 0, 0.34);
   text-align: left;
+}
+.ending-stat:nth-child(1) { --ending-stat-index: 0; }
+.ending-stat:nth-child(2) { --ending-stat-index: 1; }
+.ending-stat:nth-child(3) { --ending-stat-index: 2; }
+.ending-stat:nth-child(4) { --ending-stat-index: 3; }
+#screen-ending.is-revealed .ending-stat {
+  animation: endingMetricRise 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--ending-metrics-delay, 1240ms) + (var(--ending-stat-index, 0) * 110ms));
+}
+@keyframes endingMetricRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
 }
 .ending-stat-label {
   font-family: var(--font-hud);
@@ -3344,7 +3408,7 @@ body {
 }
 
 .ending-meter {
-  --ending-delay: 500ms;
+  --ending-delay: 1420ms;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -3387,9 +3451,11 @@ body {
   background: linear-gradient(90deg, var(--ending-accent), rgba(255, 255, 255, 0.92));
   box-shadow: 0 0 22px var(--ending-accent-soft);
   transition: width 1200ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: 0ms;
 }
 #screen-ending.is-revealed .ending-meter-fill {
   width: var(--ending-meter-target);
+  transition-delay: 1520ms;
 }
 .ending-logline {
   font-family: var(--font-body);
@@ -3399,7 +3465,7 @@ body {
 }
 
 .ending-timeline {
-  --ending-delay: 560ms;
+  --ending-delay: 1540ms;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -3489,7 +3555,7 @@ body {
 }
 
 .ending-actions {
-  --ending-delay: 620ms;
+  --ending-delay: 1680ms;
   display: flex;
   gap: 0.74rem;
   flex-wrap: wrap;
