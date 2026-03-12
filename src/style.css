@@ -1756,6 +1756,21 @@ body {
   background: var(--bg-primary);
   overflow: hidden;
   z-index: 1;
+  --beat-pan-start-x: 0px;
+  --beat-pan-start-y: 0px;
+  --beat-pan-mid-x: 0px;
+  --beat-pan-mid-y: 0px;
+  --beat-pan-end-x: 0px;
+  --beat-pan-end-y: 0px;
+  --beat-pan-scale: 1.05;
+  --beat-motion-duration: 12.6s;
+  --beat-vignette-start-x: 0px;
+  --beat-vignette-start-y: 0px;
+  --beat-vignette-end-x: 0px;
+  --beat-vignette-end-y: 0px;
+  --beat-vignette-inner-stop: 36%;
+  --beat-vignette-opacity-mid: 0.34;
+  --beat-vignette-opacity-end: 0.28;
 }
 .image-panel::before {
   content: '';
@@ -1766,6 +1781,30 @@ body {
   background:
     radial-gradient(140% 70% at 50% 120%, rgba(var(--overlay-tint), 0.86) 20%, rgba(var(--overlay-tint), 0.08) 70%, transparent 100%),
     linear-gradient(180deg, rgba(var(--overlay-tint), 0.54) 0%, rgba(var(--overlay-tint), 0.06) 30%, rgba(var(--overlay-tint), 0.62) 100%);
+}
+.cinematic-vignette {
+  position: absolute;
+  inset: -8%;
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0.24;
+  mix-blend-mode: multiply;
+  background:
+    radial-gradient(
+      146% 92% at 50% 58%,
+      rgba(0, 0, 0, 0) var(--beat-vignette-inner-stop),
+      rgba(0, 0, 0, 0.58) 100%
+    ),
+    radial-gradient(
+      122% 74% at 50% 2%,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0) 68%
+    );
+  transform: translate3d(0, 0, 0) scale(1.03);
+  will-change: transform, opacity, filter;
+}
+.image-panel.is-beat-transition .cinematic-vignette {
+  animation: cinematicVignetteShift var(--beat-motion-duration) ease-in-out forwards;
 }
 
 .img-placeholder {
@@ -1920,12 +1959,16 @@ body {
   object-fit: cover;
   filter: var(--img-filter);
   z-index: 1;
+  transform-origin: center center;
+  will-change: opacity, transform, filter;
 }
 .game-svg {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   z-index: 1;
+  transform-origin: center center;
+  will-change: opacity, transform, filter;
 }
 .game-svg svg { width: 100% !important; height: 100% !important; display: block; }
 
@@ -1984,12 +2027,50 @@ body {
 
 .cinematic-in {
   animation: cinematicReveal 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: opacity, transform, filter;
-  transform-origin: center center;
 }
 @keyframes cinematicReveal {
   from { opacity: 0; transform: scale(1.05); filter: var(--img-filter) blur(14px) brightness(0.65); }
   to   { opacity: 1; transform: scale(1);    filter: var(--img-filter) blur(0)    brightness(1); }
+}
+.image-panel.is-beat-transition .game-img.cinematic-in,
+.image-panel.is-beat-transition .game-svg.cinematic-in {
+  animation: cinematicBeatReveal var(--beat-motion-duration) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes cinematicBeatReveal {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--beat-pan-start-x), var(--beat-pan-start-y), 0) scale(calc(var(--beat-pan-scale) + 0.055));
+    filter: var(--img-filter) blur(14px) brightness(0.62);
+  }
+  18% {
+    opacity: 1;
+    transform: translate3d(
+      var(--beat-pan-mid-x),
+      var(--beat-pan-mid-y),
+      0
+    ) scale(calc(var(--beat-pan-scale) + 0.015));
+    filter: var(--img-filter) blur(1px) brightness(0.93);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(var(--beat-pan-end-x), var(--beat-pan-end-y), 0) scale(var(--beat-pan-scale));
+    filter: var(--img-filter) blur(0) brightness(1);
+  }
+}
+@keyframes cinematicVignetteShift {
+  0% {
+    opacity: 0.2;
+    transform: translate3d(var(--beat-vignette-start-x), var(--beat-vignette-start-y), 0) scale(1.07);
+    filter: blur(1px);
+  }
+  36% {
+    opacity: var(--beat-vignette-opacity-mid);
+  }
+  100% {
+    opacity: var(--beat-vignette-opacity-end);
+    transform: translate3d(var(--beat-vignette-end-x), var(--beat-vignette-end-y), 0) scale(1.02);
+    filter: blur(0);
+  }
 }
 
 /* ── Tactical HUD ── */
@@ -3374,6 +3455,19 @@ body {
     animation: none !important;
     color: var(--loading-text) !important;
     text-shadow: none !important;
+    filter: none !important;
+  }
+  .image-panel.is-beat-transition .game-img.cinematic-in,
+  .image-panel.is-beat-transition .game-svg.cinematic-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: var(--img-filter) !important;
+  }
+  .image-panel.is-beat-transition .cinematic-vignette {
+    animation: none !important;
+    opacity: 0.24 !important;
+    transform: none !important;
     filter: none !important;
   }
 }

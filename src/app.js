@@ -5224,6 +5224,85 @@
       overlay.classList.remove('hidden');
     }
 
+    function clampBeatMotion(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function beatCinematicProfile(pageId, meta) {
+      const beat = clampBeatMotion(Number(meta?.beat) || 1, 1, BEAT_NAMES.length);
+      const path = meta?.path || 'good';
+      const beatPhase = (beat - 1) / Math.max(1, BEAT_NAMES.length - 1);
+      const pathBias = path === 'bad' ? 1 : path === 'neutral' ? 0.5 : 0;
+
+      const seed = _seedStr(`${S.storySessionId}:${S.genre || ''}:${pageId || ''}:${beat}:${path}`);
+      const rng = _mkRng(seed);
+
+      const startX = (rng() - 0.5) * (26 + beatPhase * 20);
+      const startY = (rng() - 0.5) * (16 + beatPhase * 12);
+      const midX = startX * 0.56;
+      const midY = startY * 0.56;
+      const endX = clampBeatMotion(startX + (rng() - 0.5) * (18 + beatPhase * 16), -42, 42);
+      const endY = clampBeatMotion(startY + (rng() - 0.5) * (12 + beatPhase * 10), -26, 26);
+
+      const panScale = 1.042 + beatPhase * 0.034 + pathBias * 0.008 + rng() * 0.012;
+      const motionSec = 11 + beatPhase * 2.2 + rng() * 2.8;
+
+      const vigStartX = -startX * (0.3 + rng() * 0.08);
+      const vigStartY = -startY * (0.33 + rng() * 0.08);
+      const vigEndX = -endX * (0.24 + rng() * 0.1);
+      const vigEndY = -endY * (0.28 + rng() * 0.1);
+      const vigBase = 0.2 + beatPhase * 0.09 + pathBias * 0.05;
+      const vigPeak = clampBeatMotion(vigBase + 0.08 + rng() * 0.05, 0.24, 0.5);
+      const vigEnd = clampBeatMotion(vigBase + 0.03 + rng() * 0.05, 0.22, 0.44);
+      const vigInner = clampBeatMotion(36 - beatPhase * 3 - pathBias * 2 + rng() * 2, 28, 40);
+
+      return {
+        beat,
+        startX,
+        startY,
+        midX,
+        midY,
+        endX,
+        endY,
+        panScale,
+        motionSec,
+        vigStartX,
+        vigStartY,
+        vigEndX,
+        vigEndY,
+        vigPeak,
+        vigEnd,
+        vigInner,
+      };
+    }
+
+    function applyBeatCinematicTransition(pageId, meta) {
+      const panel = document.getElementById('image-panel');
+      if (!panel) return;
+
+      const profile = beatCinematicProfile(pageId, meta);
+      panel.style.setProperty('--beat-pan-start-x', `${profile.startX.toFixed(2)}px`);
+      panel.style.setProperty('--beat-pan-start-y', `${profile.startY.toFixed(2)}px`);
+      panel.style.setProperty('--beat-pan-mid-x', `${profile.midX.toFixed(2)}px`);
+      panel.style.setProperty('--beat-pan-mid-y', `${profile.midY.toFixed(2)}px`);
+      panel.style.setProperty('--beat-pan-end-x', `${profile.endX.toFixed(2)}px`);
+      panel.style.setProperty('--beat-pan-end-y', `${profile.endY.toFixed(2)}px`);
+      panel.style.setProperty('--beat-pan-scale', profile.panScale.toFixed(4));
+      panel.style.setProperty('--beat-motion-duration', `${profile.motionSec.toFixed(2)}s`);
+
+      panel.style.setProperty('--beat-vignette-start-x', `${profile.vigStartX.toFixed(2)}px`);
+      panel.style.setProperty('--beat-vignette-start-y', `${profile.vigStartY.toFixed(2)}px`);
+      panel.style.setProperty('--beat-vignette-end-x', `${profile.vigEndX.toFixed(2)}px`);
+      panel.style.setProperty('--beat-vignette-end-y', `${profile.vigEndY.toFixed(2)}px`);
+      panel.style.setProperty('--beat-vignette-opacity-mid', profile.vigPeak.toFixed(3));
+      panel.style.setProperty('--beat-vignette-opacity-end', profile.vigEnd.toFixed(3));
+      panel.style.setProperty('--beat-vignette-inner-stop', `${profile.vigInner.toFixed(2)}%`);
+
+      panel.classList.remove('is-beat-transition');
+      void panel.offsetWidth;
+      panel.classList.add('is-beat-transition');
+    }
+
     function setImagePromptPlaceholder(prompt) {
       const promptEl = document.getElementById('ph-prompt');
       if (!promptEl) return;
@@ -5272,6 +5351,7 @@
       }));
       updateGameHud(meta);
       updatePageOneTitleOverlay(pageId);
+      applyBeatCinematicTransition(pageId, meta);
 
       // Story text (fade transition)
       const textEl = document.getElementById('story-text');
