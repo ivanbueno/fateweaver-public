@@ -5232,6 +5232,110 @@
       return tally;
     }
 
+    function endingImpactCopyFor(outcome) {
+      if (outcome === 'good') {
+        return {
+          label: 'Outcome Boost',
+          detail: `Shifted toward ${endingRecapLabel('good')}`,
+        };
+      }
+      if (outcome === 'neutral') {
+        return {
+          label: 'Outcome Steady',
+          detail: `Held near ${endingRecapLabel('neutral')}`,
+        };
+      }
+      if (outcome === 'bad') {
+        return {
+          label: 'Outcome Risk',
+          detail: `Shifted toward ${endingRecapLabel('bad')}`,
+        };
+      }
+      return {
+        label: 'Outcome Unknown',
+        detail: 'Impact unresolved',
+      };
+    }
+
+    function endingTimelineEntries() {
+      const pages = S.story?.pages || {};
+      const entries = [];
+      let priorPageId = 'page_1';
+
+      (S.choicesMade || []).forEach((rawChoice, idx) => {
+        const choice = (typeof rawChoice === 'string')
+          ? { from: priorPageId, to: rawChoice }
+          : (rawChoice || {});
+        const fromPageId = (typeof choice.from === 'string' && choice.from) ? choice.from : priorPageId;
+        const toPageId = (typeof choice.to === 'string' && choice.to)
+          ? choice.to
+          : ((typeof choice.nextPage === 'string' && choice.nextPage) ? choice.nextPage : '');
+        if (!toPageId) return;
+
+        const fromPage = pages[fromPageId];
+        const matchedChoice = Array.isArray(fromPage?.choices)
+          ? fromPage.choices.find(option => option?.nextPage === toPageId)
+          : null;
+        const decision = normalizeStoryText(matchedChoice?.label, 180)
+          || `Advanced to ${resumeCheckpointLabel(toPageId)}`;
+        const outcome = resolveChoiceOutcome(choice, fromPageId) || 'unknown';
+        const fromBeat = Number(gaPageMeta(fromPageId).beat) || (idx + 1);
+        const beat = Math.max(1, Math.min(BEAT_NAMES.length, fromBeat));
+
+        entries.push({
+          beat,
+          decision,
+          outcome,
+        });
+
+        priorPageId = toPageId;
+      });
+
+      return entries;
+    }
+
+    function renderEndingTimeline() {
+      const listEl = document.getElementById('ending-timeline-list');
+      if (!listEl) return;
+
+      listEl.innerHTML = '';
+      const entries = endingTimelineEntries();
+
+      if (!entries.length) {
+        const empty = document.createElement('li');
+        empty.className = 'ending-timeline-empty';
+        empty.textContent = 'No key decisions were captured for this route.';
+        listEl.appendChild(empty);
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+      entries.forEach(entry => {
+        const impact = endingImpactCopyFor(entry.outcome);
+        const item = document.createElement('li');
+        item.className = 'ending-timeline-item';
+
+        const stepEl = document.createElement('span');
+        stepEl.className = 'ending-timeline-step';
+        stepEl.textContent = `Beat ${romanBeat(entry.beat)}`;
+
+        const decisionEl = document.createElement('p');
+        decisionEl.className = 'ending-timeline-decision';
+        decisionEl.textContent = entry.decision;
+
+        const impactEl = document.createElement('span');
+        impactEl.className = `ending-timeline-impact ${entry.outcome}`;
+        impactEl.textContent = `${impact.label} • ${impact.detail}`;
+
+        item.appendChild(stepEl);
+        item.appendChild(decisionEl);
+        item.appendChild(impactEl);
+        frag.appendChild(item);
+      });
+
+      listEl.appendChild(frag);
+    }
+
     function endingScore(type, tally) {
       const total = tally.good + tally.neutral + tally.bad;
       const weighted = total ? ((tally.good * 100) + (tally.neutral * 58) + (tally.bad * 26)) / total : 50;
@@ -5560,6 +5664,7 @@
       if (alignment) alignment.textContent = report.alignment;
       if (score) score.textContent = String(report.score).padStart(3, '0');
       if (logline) logline.textContent = report.recap;
+      renderEndingTimeline();
 
       if (type === 'neutral') {
         sigil.textContent = '◎';

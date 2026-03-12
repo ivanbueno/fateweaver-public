@@ -2749,6 +2749,96 @@ body {
   color: rgba(238, 241, 248, 0.86);
 }
 
+.ending-timeline {
+  --ending-delay: 560ms;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.52rem;
+  padding: 0.76rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.42);
+}
+.ending-timeline-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.ending-timeline-title {
+  font-family: var(--font-hud);
+  font-size: 0.72rem;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+.ending-timeline-note {
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  color: rgba(230, 234, 244, 0.74);
+}
+.ending-timeline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.44rem;
+  max-height: min(30vh, 250px);
+  overflow-y: auto;
+}
+.ending-timeline-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.52rem;
+  align-items: start;
+  padding: 0.52rem 0.56rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+}
+.ending-timeline-step {
+  font-family: var(--font-hud);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+  white-space: nowrap;
+}
+.ending-timeline-decision {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  line-height: 1.42;
+  color: rgba(240, 242, 250, 0.92);
+}
+.ending-timeline-impact {
+  justify-self: end;
+  font-family: var(--font-signal);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: right;
+}
+.ending-timeline-impact.good {
+  color: #8ddfb8;
+}
+.ending-timeline-impact.neutral {
+  color: #d7c490;
+}
+.ending-timeline-impact.bad {
+  color: #de8e8e;
+}
+.ending-timeline-impact.unknown {
+  color: rgba(215, 218, 229, 0.78);
+}
+.ending-timeline-empty {
+  padding: 0.5rem;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  color: rgba(235, 239, 248, 0.76);
+}
+
 .ending-actions {
   --ending-delay: 620ms;
   display: flex;
@@ -3067,6 +3157,19 @@ body {
   }
   .ending-meter {
     padding: 0.62rem;
+  }
+  .ending-timeline {
+    padding: 0.62rem;
+  }
+  .ending-timeline-note {
+    font-size: 0.72rem;
+  }
+  .ending-timeline-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .ending-timeline-impact {
+    grid-column: 2;
+    justify-self: start;
   }
   .ending-actions {
     flex-direction: column;
