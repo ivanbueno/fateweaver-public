@@ -1251,6 +1251,7 @@ body {
     inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 .setup-section.locked {
+  display: none;
   opacity: 0;
   transform: translateY(22px);
   pointer-events: none;

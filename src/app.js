@@ -4090,7 +4090,10 @@
 
       const panelEl = document.getElementById('story-preview-panel');
       if (panelEl) {
-        panelEl.classList.toggle('is-partial', preview.selectedCount > 0 && !preview.complete);
+        const hasSelection = preview.selectedCount > 0;
+        panelEl.classList.toggle('hidden', !hasSelection);
+        panelEl.setAttribute('aria-hidden', hasSelection ? 'false' : 'true');
+        panelEl.classList.toggle('is-partial', hasSelection && !preview.complete);
         panelEl.classList.toggle('is-complete', preview.complete);
       }
       const metaEl = document.getElementById('story-preview-meta');
