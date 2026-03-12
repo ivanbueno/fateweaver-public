@@ -115,6 +115,7 @@
     const BEAT_NAMES = ['You', 'Need', 'Go', 'Search', 'Find', 'Pay', 'Return', 'Change'];
     const BEAT_ICONS = ['◎', '✦', '➤', '⌕', '◇', '✕', '↺', '✧'];
     const ROMAN_BEATS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+    const CHOICE_FEEDBACK_HOLD_MS = 320;
     const ARCHETYPE_ROUTE_PREFIX = {
       'The Hero':        "Champion's",   'The Rebel':       "Rebel's",
       'The Outlaw':      "Outlaw's",     'The Explorer':    "Explorer's",
@@ -717,6 +718,7 @@
       hudBeat:       1,
       storyRunStartedAt: 0,
       lastEndingType: 'good',
+      choiceInFlight: false,
     };
 
     // ─── ANALYTICS (Google Analytics 4) ───────────────────────
@@ -5428,16 +5430,50 @@
       return a;
     }
 
+    function choiceOutcomeClass(outcome) {
+      const normalized = normalizeOutcome(outcome);
+      if (normalized === 'good' || normalized === 'neutral' || normalized === 'bad') {
+        return `choice-outcome-${normalized}`;
+      }
+      return 'choice-outcome-unknown';
+    }
+
+    function triggerChoiceRipple(btn, evt) {
+      if (!(btn instanceof HTMLElement)) return;
+      const rect = btn.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const ripple = document.createElement('span');
+      ripple.className = 'choice-ripple';
+
+      const pointerX = Number(evt?.clientX);
+      const pointerY = Number(evt?.clientY);
+      const useCenter = evt?.detail === 0 || !Number.isFinite(pointerX) || !Number.isFinite(pointerY);
+      const x = useCenter ? rect.width / 2 : pointerX - rect.left;
+      const y = useCenter ? rect.height / 2 : pointerY - rect.top;
+      const diameter = Math.max(rect.width, rect.height) * 1.16;
+
+      ripple.style.left = `${x.toFixed(1)}px`;
+      ripple.style.top = `${y.toFixed(1)}px`;
+      ripple.style.width = `${diameter.toFixed(1)}px`;
+      ripple.style.height = `${diameter.toFixed(1)}px`;
+
+      btn.appendChild(ripple);
+      ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+    }
+
     function renderChoices(page) {
       const container = document.getElementById('choices');
       container.innerHTML = '';
+      container.classList.remove('is-selecting');
+      S.choiceInFlight = false;
       if (page.choices && page.choices.length > 0) {
         shuffle(page.choices).forEach((c, idx) => {
           const btn = document.createElement('button');
           btn.className = 'choice-btn';
           btn.style.setProperty('--choice-delay', `${idx * 70}ms`);
           btn.innerHTML = `<span class="choice-index">${idx + 1}</span><span class="choice-label">${esc(c.label)}</span><span class="choice-arrow">→</span>`;
-          btn.onclick   = () => makeChoice(c.nextPage, c.outcome);
+          btn.onclick   = evt => makeChoice(c.nextPage, c.outcome, btn, evt);
           container.appendChild(btn);
         });
       } else {
@@ -5490,13 +5526,39 @@
       return inferOutcomeFromPageId(toPageId) || inferOutcomeFromPageId(fromPageId);
     }
 
-    function makeChoice(nextPageId, outcome) {
-      if (!nextPageId) return;
+    async function makeChoice(nextPageId, outcome, sourceBtn = null, evt = null) {
+      if (!nextPageId || S.choiceInFlight) return;
+      S.choiceInFlight = true;
+
       const resolvedOutcome = resolveChoiceOutcome({
         from: S.currentPageId,
         to: nextPageId,
         outcome,
       });
+      const visualOutcomeClass = choiceOutcomeClass(resolvedOutcome || outcome);
+      const container = document.getElementById('choices');
+
+      if (container) {
+        container.classList.add('is-selecting');
+        container.querySelectorAll('.choice-btn').forEach(btn => {
+          btn.disabled = true;
+          btn.setAttribute('aria-disabled', 'true');
+          btn.classList.remove(
+            'is-selected',
+            'choice-outcome-good',
+            'choice-outcome-neutral',
+            'choice-outcome-bad',
+            'choice-outcome-unknown'
+          );
+        });
+      }
+
+      if (sourceBtn instanceof HTMLElement) {
+        sourceBtn.classList.add('is-selected', visualOutcomeClass);
+        sourceBtn.setAttribute('aria-pressed', 'true');
+        triggerChoiceRipple(sourceBtn, evt);
+      }
+
       trackEvent('story_choice_made', gaStoryParams({
         from_page: gaSafe(S.currentPageId, 24),
         to_page: gaSafe(nextPageId, 24),
@@ -5504,7 +5566,12 @@
         choice_depth: S.choicesMade.length + 1,
       }));
       S.choicesMade.push({ from: S.currentPageId, to: nextPageId, outcome: resolvedOutcome || null });
-      renderPage(nextPageId);
+      try {
+        await new Promise(resolve => setTimeout(resolve, CHOICE_FEEDBACK_HOLD_MS));
+        renderPage(nextPageId);
+      } finally {
+        S.choiceInFlight = false;
+      }
     }
 
     function determineEnding(pageId) {
