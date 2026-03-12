@@ -744,6 +744,10 @@
     let deleteStoriesDecisionResolver = null;
     let deleteStoriesDecisionFocusEl = null;
     let setupHistoryRenderVersion = 0;
+    let storyCircleTooltipEl = null;
+    let storyCircleTooltipGlobalsBound = false;
+    let storyCircleTooltipTouchTile = null;
+    let storyCircleTooltipAutoHideTid = null;
 
     function gaSafe(value, maxLen = 120) {
       if (value === null || value === undefined) return '';
@@ -5812,16 +5816,180 @@
     }
 
     /* ─── STORY CIRCLE ─────────────────────────────────────── */
+    function storyCircleBeatMeta() {
+      const metaByBeat = Array.from({ length: BEAT_NAMES.length }, () => null);
+      let priorPageId = 'page_1';
+      (S.choicesMade || []).forEach((rawChoice, idx) => {
+        const choice = (typeof rawChoice === 'string')
+          ? { from: priorPageId, to: rawChoice }
+          : (rawChoice || {});
+        const fromPageId = (typeof choice.from === 'string' && choice.from) ? choice.from : priorPageId;
+        const toPageId = (typeof choice.to === 'string' && choice.to)
+          ? choice.to
+          : ((typeof choice.nextPage === 'string' && choice.nextPage) ? choice.nextPage : '');
+        if (!toPageId) return;
+
+        const fromPage = S.story?.pages?.[fromPageId];
+        const matchedChoice = Array.isArray(fromPage?.choices)
+          ? fromPage.choices.find(option => option?.nextPage === toPageId)
+          : null;
+        const choiceText = normalizeStoryText(matchedChoice?.label, 180)
+          || normalizeStoryText(`Advanced to ${resumeCheckpointLabel(toPageId)}`, 180);
+        const outcome = resolveChoiceOutcome(choice, fromPageId);
+        const outcomeClass = (outcome === 'good' || outcome === 'neutral' || outcome === 'bad')
+          ? `outcome-${outcome}`
+          : 'outcome-unknown';
+        const beatNumber = Number(gaPageMeta(fromPageId).beat) || (idx + 1);
+        const beatIndex = Math.max(0, Math.min(BEAT_NAMES.length - 1, beatNumber - 1));
+        metaByBeat[beatIndex] = { outcomeClass, choiceText };
+        if (toPageId) priorPageId = toPageId;
+      });
+      return metaByBeat;
+    }
+
+    function ensureStoryCircleTooltipEl() {
+      if (storyCircleTooltipEl && storyCircleTooltipEl.isConnected) return storyCircleTooltipEl;
+      const tip = document.createElement('div');
+      tip.id = 'story-circle-tooltip';
+      tip.className = 'story-circle-tooltip';
+      tip.setAttribute('role', 'tooltip');
+      tip.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(tip);
+      storyCircleTooltipEl = tip;
+      if (!storyCircleTooltipGlobalsBound) {
+        window.addEventListener('resize', hideStoryCircleTooltip);
+        window.addEventListener('scroll', hideStoryCircleTooltip, true);
+        const dismissIfOutside = evt => {
+          const target = evt?.target;
+          if (!(target instanceof Element)) {
+            hideStoryCircleTooltip();
+            return;
+          }
+          if (target.closest('.bs[data-tooltip]') || target.closest('#story-circle-tooltip')) return;
+          hideStoryCircleTooltip();
+        };
+        if (window.PointerEvent) {
+          window.addEventListener('pointerdown', dismissIfOutside, true);
+        } else {
+          window.addEventListener('touchstart', dismissIfOutside, true);
+          window.addEventListener('mousedown', dismissIfOutside, true);
+        }
+        storyCircleTooltipGlobalsBound = true;
+      }
+      return tip;
+    }
+
+    function clearStoryCircleTooltipAutoHide() {
+      if (!storyCircleTooltipAutoHideTid) return;
+      clearTimeout(storyCircleTooltipAutoHideTid);
+      storyCircleTooltipAutoHideTid = null;
+    }
+
+    function scheduleStoryCircleTooltipAutoHide(delayMs = 2800) {
+      clearStoryCircleTooltipAutoHide();
+      storyCircleTooltipAutoHideTid = setTimeout(() => {
+        hideStoryCircleTooltip();
+      }, delayMs);
+    }
+
+    function hideStoryCircleTooltip() {
+      clearStoryCircleTooltipAutoHide();
+      storyCircleTooltipTouchTile = null;
+      if (!storyCircleTooltipEl) return;
+      storyCircleTooltipEl.classList.remove('is-visible');
+      storyCircleTooltipEl.setAttribute('aria-hidden', 'true');
+    }
+
+    function placeStoryCircleTooltip(targetEl, pointerX = null) {
+      if (!storyCircleTooltipEl || !targetEl) return;
+      const tipRect = storyCircleTooltipEl.getBoundingClientRect();
+      const targetRect = targetEl.getBoundingClientRect();
+      const margin = 8;
+      const anchorX = Number.isFinite(pointerX) ? pointerX : (targetRect.left + (targetRect.width / 2));
+
+      let left = anchorX - (tipRect.width / 2);
+      left = Math.max(margin, Math.min(window.innerWidth - tipRect.width - margin, left));
+
+      let top = targetRect.top - tipRect.height - 10;
+      if (top < margin) top = targetRect.bottom + 10;
+      if (top + tipRect.height > window.innerHeight - margin) {
+        top = Math.max(margin, window.innerHeight - tipRect.height - margin);
+      }
+
+      storyCircleTooltipEl.style.left = `${Math.round(left)}px`;
+      storyCircleTooltipEl.style.top = `${Math.round(top)}px`;
+    }
+
+    function showStoryCircleTooltip(targetEl, pointerX = null) {
+      if (!targetEl) return;
+      const text = targetEl.getAttribute('data-tooltip') || '';
+      if (!text) { hideStoryCircleTooltip(); return; }
+      const tip = ensureStoryCircleTooltipEl();
+      tip.textContent = text;
+      tip.classList.add('is-visible');
+      tip.setAttribute('aria-hidden', 'false');
+      placeStoryCircleTooltip(targetEl, pointerX);
+    }
+
+    function bindStoryCircleTooltips(circleEl) {
+      if (!circleEl) return;
+      circleEl.querySelectorAll('.bs[data-tooltip]').forEach(tile => {
+        tile.addEventListener('mouseenter', () => showStoryCircleTooltip(tile));
+        tile.addEventListener('mousemove', evt => showStoryCircleTooltip(tile, evt.clientX));
+        tile.addEventListener('mouseleave', hideStoryCircleTooltip);
+        tile.addEventListener('focus', () => showStoryCircleTooltip(tile));
+        tile.addEventListener('blur', hideStoryCircleTooltip);
+
+        tile.addEventListener('pointerdown', evt => {
+          if (evt.pointerType !== 'touch' && evt.pointerType !== 'pen') return;
+          evt.preventDefault();
+          const alreadyVisible = storyCircleTooltipEl?.classList.contains('is-visible');
+          if (alreadyVisible && storyCircleTooltipTouchTile === tile) {
+            hideStoryCircleTooltip();
+            return;
+          }
+          showStoryCircleTooltip(tile, evt.clientX);
+          storyCircleTooltipTouchTile = tile;
+          scheduleStoryCircleTooltipAutoHide();
+        });
+
+        tile.addEventListener('touchstart', evt => {
+          if (window.PointerEvent) return;
+          evt.preventDefault();
+          const touchX = Number(evt.changedTouches?.[0]?.clientX);
+          const alreadyVisible = storyCircleTooltipEl?.classList.contains('is-visible');
+          if (alreadyVisible && storyCircleTooltipTouchTile === tile) {
+            hideStoryCircleTooltip();
+            return;
+          }
+          showStoryCircleTooltip(tile, Number.isFinite(touchX) ? touchX : null);
+          storyCircleTooltipTouchTile = tile;
+          scheduleStoryCircleTooltipAutoHide();
+        }, { passive: false });
+      });
+    }
+
     function renderCircle(currentBeat) {
       const el = document.getElementById('story-circle');
       if (!el) return;
+      hideStoryCircleTooltip();
       const beat = Math.max(1, Math.min(BEAT_NAMES.length, Number(currentBeat) || 1));
+      const beatMeta = storyCircleBeatMeta();
       el.innerHTML = BEAT_NAMES.map((name, i) => {
         const b   = i + 1;
         const icon = BEAT_ICONS[i] || '•';
-        const cls = b < beat ? 'bs done' : b === beat ? 'bs active' : 'bs';
-        return `<div class="${cls}" title="Beat ${b}: ${name}"><div class="bs-bar"></div><div class="bs-step">${b}</div><div class="bs-name">${icon}</div></div>`;
+        const decisionMeta = beatMeta[b - 1];
+        const outcomeClass = b < beat ? (decisionMeta?.outcomeClass || 'outcome-unknown') : '';
+        const tooltipText = (b < beat)
+          ? (decisionMeta?.choiceText || `No recorded choice for Beat ${romanBeat(b)}.`)
+          : '';
+        const tooltipAttr = tooltipText ? ` data-tooltip="${esc(tooltipText)}"` : '';
+        const ariaAttr = tooltipText ? ` aria-label="${esc(tooltipText)}"` : '';
+        const focusAttr = tooltipText ? ' tabindex="0"' : '';
+        const cls = `${b < beat ? 'bs done' : b === beat ? 'bs active' : 'bs'}${outcomeClass ? ` ${outcomeClass}` : ''}`;
+        return `<div class="${cls}"${tooltipAttr}${ariaAttr}${focusAttr}><div class="bs-bar"></div><div class="bs-step">${b}</div><div class="bs-name">${icon}</div></div>`;
       }).join('');
+      bindStoryCircleTooltips(el);
     }
 
     /* ─── IMAGE MODE ────────────────────────────────────────── */
