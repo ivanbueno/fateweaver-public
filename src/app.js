@@ -3740,14 +3740,15 @@
       const renderVersion = ++setupHistoryRenderVersion;
 
       const stories = savedStoriesFromStorage();
-      historyEl.classList.toggle('hidden', stories.length === 0);
-      if (!stories.length) {
+      const storyCount = stories.length;
+      historyEl.classList.toggle('hidden', storyCount === 0);
+      if (!storyCount) {
         listEl.innerHTML = '';
         historyEl.open = false;
         return;
       }
 
-      summaryEl.textContent = `Replay Previous Stories (${stories.length})`;
+      summaryEl.textContent = `Replay Previous Stories (${storyCount})`;
       historyEl.open = false;
       listEl.innerHTML = '';
 
@@ -3765,6 +3766,10 @@
         link.innerHTML = `
           <span class="setup-history-preview">
             <img class="setup-history-preview-img hidden" alt="" loading="lazy" decoding="async">
+            <span class="setup-history-preview-empty" aria-hidden="true">
+              <span class="setup-history-preview-empty-icon">⌁</span>
+              <span class="setup-history-preview-empty-copy">No scene snapshot yet</span>
+            </span>
             <span class="setup-history-pills setup-history-pills-top">${pills}</span>
             <span class="setup-history-body">
               <strong class="setup-history-title">${esc(displayTitle)}</strong>
@@ -5771,7 +5776,14 @@
       if (!entries.length) {
         const empty = document.createElement('li');
         empty.className = 'ending-timeline-empty';
-        empty.textContent = 'No key decisions were captured for this route.';
+        const title = document.createElement('p');
+        title.className = 'ending-timeline-empty-title';
+        title.textContent = 'No branch pivots recorded.';
+        const copy = document.createElement('p');
+        copy.className = 'ending-timeline-empty-copy';
+        copy.textContent = 'This ending was reached before tracked decisions began. Replay to map a fuller route.';
+        empty.appendChild(title);
+        empty.appendChild(copy);
         listEl.appendChild(empty);
         return;
       }
