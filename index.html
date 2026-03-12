@@ -241,12 +241,25 @@
         <div id="genre-section" class="setup-section">
           <div class="step-header">
             <span class="step-num">I</span>
-            <span class="step-name step-name-roll">
-              Choose Your Genre
-              or <a href="#" id="roll-dice-link" class="step-inline-link">Roll The Dice</a>
-            </span>
+            <span class="step-name">Choose Your Genre</span>
             <span class="step-chosen" id="genre-chosen"></span>
             <span class="step-change" aria-hidden="true">↩</span>
+          </div>
+          <div class="setup-quick-preset">
+            <button
+              id="roll-dice-link"
+              class="quick-preset-btn"
+              type="button"
+              aria-describedby="roll-dice-caption roll-dice-result"
+            >
+              <span class="quick-preset-icon" aria-hidden="true">◈</span>
+              <span class="quick-preset-copy">
+                <span id="roll-dice-label" class="quick-preset-title">Quick Preset</span>
+                <span id="roll-dice-caption" class="quick-preset-caption">Roll genre + era + archetype instantly</span>
+              </span>
+              <span class="quick-preset-arrow" aria-hidden="true">↻</span>
+            </button>
+            <p id="roll-dice-result" class="quick-preset-result" aria-live="polite"></p>
           </div>
           <div class="accordion-body">
             <div class="accordion-inner">

@@ -4114,30 +4114,75 @@
       return true;
     }
 
+    function setQuickPresetResult(message, error = false) {
+      const quickPresetEl = document.querySelector('.setup-quick-preset');
+      const resultEl = document.getElementById('roll-dice-result');
+      if (resultEl) resultEl.textContent = message || '';
+      if (quickPresetEl) {
+        quickPresetEl.classList.toggle('has-result', Boolean(message));
+        quickPresetEl.classList.toggle('has-error', Boolean(message) && error);
+      }
+    }
+
+    function setQuickPresetLabel(text) {
+      const labelEl = document.getElementById('roll-dice-label');
+      if (labelEl) labelEl.textContent = text;
+    }
+
+    function setQuickPresetRolling(isRolling) {
+      const quickPresetEl = document.querySelector('.setup-quick-preset');
+      const rollBtn = document.getElementById('roll-dice-link');
+      if (quickPresetEl) quickPresetEl.classList.toggle('is-rolling', isRolling);
+      if (rollBtn) {
+        rollBtn.disabled = isRolling;
+        rollBtn.setAttribute('aria-busy', isRolling ? 'true' : 'false');
+      }
+    }
+
+    function resetQuickPresetUi() {
+      setQuickPresetRolling(false);
+      setQuickPresetLabel('Quick Preset');
+      setQuickPresetResult('', false);
+    }
+
+    function quickPresetSummaryText(preset) {
+      return `${preset.genre} • ${preset.era} • ${preset.archetype}`;
+    }
+
     function rollTheDice(evt) {
       if (evt) {
         evt.preventDefault();
         evt.stopPropagation();
       }
-      const currentGenreMatchesPreset = preset =>
-        S.genre
-        && preset.genre === S.genre;
-      const selectablePresets = ROLL_DICE_PRESETS.filter(preset => !currentGenreMatchesPreset(preset));
-      const presetPool = selectablePresets.length ? selectablePresets : ROLL_DICE_PRESETS;
-      const preset = presetPool[Math.floor(Math.random() * presetPool.length)];
-      const pickedGenre = selectSetupOption('genre-grid', preset.genre);
-      const pickedEra = selectSetupOption('era-grid', preset.era);
-      const pickedArchetype = selectSetupOption('archetype-grid', preset.archetype);
-      if (!pickedGenre || !pickedEra || !pickedArchetype) {
-        alert('Unable to apply a random preset right now. Please try again.');
-        return;
+      const rollBtn = document.getElementById('roll-dice-link');
+      if (rollBtn?.disabled) return;
+      setQuickPresetRolling(true);
+      try {
+        const currentGenreMatchesPreset = preset =>
+          S.genre
+          && preset.genre === S.genre;
+        const selectablePresets = ROLL_DICE_PRESETS.filter(preset => !currentGenreMatchesPreset(preset));
+        const presetPool = selectablePresets.length ? selectablePresets : ROLL_DICE_PRESETS;
+        const preset = presetPool[Math.floor(Math.random() * presetPool.length)];
+        const pickedGenre = selectSetupOption('genre-grid', preset.genre);
+        const pickedEra = selectSetupOption('era-grid', preset.era);
+        const pickedArchetype = selectSetupOption('archetype-grid', preset.archetype);
+        if (!pickedGenre || !pickedEra || !pickedArchetype) {
+          setQuickPresetLabel('Try Again');
+          setQuickPresetResult('Unable to apply a quick preset right now. Try once more.', true);
+          return;
+        }
+        setQuickPresetLabel('Re-roll Preset');
+        setQuickPresetResult(`Rolled: ${quickPresetSummaryText(preset)}`);
+        trackEvent('selection_randomized', gaStoryParams({
+          preset_genre: gaSafe(preset.genre, 48),
+          preset_era: gaSafe(preset.era, 48),
+          preset_archetype: gaSafe(preset.archetype, 48),
+          selection_count: setupSelectionCount(),
+        }));
+      } finally {
+        setQuickPresetRolling(false);
       }
-      trackEvent('selection_randomized', gaStoryParams({
-        preset_genre: gaSafe(preset.genre, 48),
-        preset_era: gaSafe(preset.era, 48),
-        preset_archetype: gaSafe(preset.archetype, 48),
-        selection_count: setupSelectionCount(),
-      }));
     }
 
     function buildGrid(containerId, items, stateKey, limit = null) {
@@ -4251,6 +4296,7 @@
       // Re-open genre section
       const genreEl = document.getElementById('genre-section');
       if (genreEl) genreEl.classList.remove('accordion-closed');
+      resetQuickPresetUi();
       // Clear all chosen summaries
       ['genre', 'era', 'archetype'].forEach(k => {
         const el = document.getElementById(`${k}-chosen`);
@@ -6412,6 +6458,7 @@
       if (rollDiceLink) {
         rollDiceLink.addEventListener('click', rollTheDice);
       }
+      resetQuickPresetUi();
 
       // Accordion header click — lets the user re-open any completed section to change selection
       ['genre-section', 'era-section', 'archetype-section'].forEach(sectionId => {
