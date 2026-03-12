@@ -531,6 +531,173 @@
       'Occult Mystery':       { key: 'horror',    font: "'Spectral', Georgia, serif",                      fontUrl: 'https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,700;1,400&display=swap' },
       'Resistance':           { key: 'resistance', font: "'Barlow Condensed', 'Trebuchet MS', sans-serif", fontUrl: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&display=swap' },
     };
+    const STORY_PREVIEW_THEME = {
+      noir: {
+        tone: 'Brooding, elegant, and morally gray',
+        conflict: 'truth is expensive and every ally has a price',
+        opening: 'Rain glazed the streetlights like fresh varnish',
+      },
+      gothic: {
+        tone: 'Lush, haunted, and slow-burning',
+        conflict: 'forbidden knowledge keeps asking for blood as payment',
+        opening: 'The chapel bell rang once, then swallowed its own echo',
+      },
+      horror: {
+        tone: 'Claustrophobic, uncanny, and relentless',
+        conflict: 'survival depends on naming what should have stayed hidden',
+        opening: 'Something in the walls learned your footsteps before midnight',
+      },
+      space: {
+        tone: 'Operatic, mythic, and high-stakes',
+        conflict: 'duty to the many collides with loyalty to the few',
+        opening: 'Starlight fractured over the war glass as alarms climbed in pitch',
+      },
+      samurai: {
+        tone: 'Disciplined, lyrical, and honor-bound',
+        conflict: 'duty and private truth demand opposite sacrifices',
+        opening: 'Morning mist clung to steel before the first drum sounded',
+      },
+      cyberpunk: {
+        tone: 'Neon-lit, kinetic, and defiant',
+        conflict: 'freedom fights surveillance at every layer of the system',
+        opening: 'The skyline flickered when the city-grid restarted in static',
+      },
+      romantic: {
+        tone: 'Intimate, yearning, and emotionally volatile',
+        conflict: 'desire clashes with status, timing, and fear',
+        opening: 'The letter arrived with the ink still wet from shaking hands',
+      },
+      resistance: {
+        tone: 'Urgent, gritty, and insurgent',
+        conflict: 'every act of courage risks someone you cannot afford to lose',
+        opening: 'Sirens rolled over the district before dawn found the rooftops',
+      },
+      western: {
+        tone: 'Dusty, stoic, and mythic',
+        conflict: 'justice and vengeance keep trading hats',
+        opening: 'Red dust crossed the main street before the saloon doors moved',
+      },
+      thriller: {
+        tone: 'Taut, procedural, and fast-moving',
+        conflict: 'one wrong move burns the mission and everyone tied to it',
+        opening: 'The secure line rang once and died before the passphrase',
+      },
+      adventure: {
+        tone: 'Sweeping, perilous, and hopeful',
+        conflict: 'wonder and ruin are separated by one bad decision',
+        opening: 'The map revealed a route no cartographer had ever signed',
+      },
+      drama: {
+        tone: 'Character-first, layered, and emotionally sharp',
+        conflict: 'private wounds collide with public expectations',
+        opening: 'The room quieted when the old family name was spoken aloud',
+      },
+      scifi: {
+        tone: 'Speculative, cerebral, and unsettling',
+        conflict: 'progress accelerates faster than ethics can follow',
+        opening: 'The chronometer skipped one second no system could account for',
+      },
+    };
+    const STORY_PREVIEW_ERA_ATMOSPHERE = {
+      'Ancient World (1200–500 BCE)': 'myths and statecraft share the same sword edge',
+      'Classical Antiquity (500 BCE–300 CE)': 'philosophy, empire, and ambition all demand a verdict',
+      'Early Medieval (900–1200)': 'faith, famine, and steel shape the law of daily life',
+      'High Medieval (1300s)': 'courts and cathedrals stand while old certainties crack',
+      'Feudal Japan (1600s)': 'hierarchy is rigid and honor is measured in public',
+      'Age of Sail (1700s)': 'empires expand by wind, cannon, and rumor',
+      'Industrial Revolution (1840s)': 'invention outruns labor, class, and law',
+      'Victorian Era (1880s)': 'etiquette conceals obsession, scandal, and hunger',
+      'Belle Époque (1900s)': 'glamour and social fracture coexist in the same ballroom',
+      'World War Era (1940s)': 'scarcity, propaganda, and sacrifice define every street',
+      'Postwar Boom (1950s)': 'polished optimism masks deep private unease',
+      'Cold War (1980s)': 'paranoia and ambition travel through quiet back channels',
+      'Early Internet Age (1990s)': 'new networks create new kinds of exposure',
+      'Contemporary (2020s)': 'everything is visible and nothing is simple',
+      'Near Future (2080–2100)': 'smart systems run fast while trust runs thin',
+      'Deep Future (3000+)': 'star-spanning civilizations still inherit old desires',
+    };
+    const STORY_PREVIEW_ERA_SCENE = {
+      'Ancient World (1200–500 BCE)': 'under torchlight and bronze standards',
+      'Classical Antiquity (500 BCE–300 CE)': 'between marble courts and crowded forums',
+      'Early Medieval (900–1200)': 'beneath monastery bells and winter smoke',
+      'High Medieval (1300s)': 'inside walled cities where banners never sleep',
+      'Feudal Japan (1600s)': 'along cedar roads and guarded castle gates',
+      'Age of Sail (1700s)': 'between storm-fed ports and blackpowder decks',
+      'Industrial Revolution (1840s)': 'through soot-heavy streets and iron stations',
+      'Victorian Era (1880s)': 'in gaslit parlors behind closed lace curtains',
+      'Belle Époque (1900s)': 'across mirrored halls and restless boulevards',
+      'World War Era (1940s)': 'under blackout rules and coded radio bursts',
+      'Postwar Boom (1950s)': 'between polished storefronts and quiet kitchen secrets',
+      'Cold War (1980s)': 'inside surveillance vans and dead-drop alleys',
+      'Early Internet Age (1990s)': 'between dial-up static and fluorescent offices',
+      'Contemporary (2020s)': 'under camera phones and relentless notifications',
+      'Near Future (2080–2100)': 'inside autonomous towers and predictive grids',
+      'Deep Future (3000+)': 'beneath station suns older than empires',
+    };
+    const STORY_PREVIEW_ARCHETYPE_LENS = {
+      'The Hero': 'idealistic and relentless under pressure',
+      'The Rebel': 'incendiary, uncompromising, and impossible to ignore',
+      'The Outlaw': 'risky, opportunistic, and always one step from fallout',
+      'The Explorer': 'curious, audacious, and hungry for the unknown',
+      'The Survivor': 'pragmatic, scarred, and hard to break',
+      'The Everyman': 'grounded, empathetic, and quietly resilient',
+      'The Lover': 'vulnerable, devoted, and difficult to predict',
+      'The Caregiver': 'protective, exhausted, and deeply principled',
+      'The Ruler': 'commanding, strategic, and wary of weakness',
+      'The Sage': 'analytical, patient, and hard to mislead',
+      'The Magician': 'visionary, transformative, and slightly dangerous',
+      'The Detective': 'observant, skeptical, and obsessed with pattern',
+      'The Huntress': 'focused, predatory, and fiercely independent',
+      'The Sorceress': 'arcane, magnetic, and costly to oppose',
+      'The Oracle': 'cryptic, burdened, and fate-aware',
+      'The Strategist': 'cold-minded, tactical, and several moves ahead',
+      'The Soldier': 'disciplined, dutiful, and carrying old weight',
+      'The Ronin': 'stoic, haunted, and loyal only to chosen vows',
+      'The Queen': 'regal, decisive, and ruthless when cornered',
+      'The Empress': 'imperial, politically sharp, and impossible to sideline',
+      'The Valkyrie': 'fierce, honor-driven, and battle-tested',
+      'The Priestess': 'ritual-bound, intuitive, and quietly formidable',
+      'The Creator': 'inventive, obsessive, and hard to contain',
+      'The Hacker': 'subversive, quick-thinking, and allergic to control',
+      'The Innocent': 'hopeful, exposed, and not naïve for long',
+      'The Jester': 'chaotic, disarming, and sharper than they appear',
+      'The Drifter': 'restless, untethered, and hard to pin down',
+      'The Artist': 'sensitive, uncompromising, and brutally perceptive',
+      'The Aristocrat': 'polished, prideful, and politically fluent',
+      'The Pilot': 'daring, instinctive, and calm at impossible speed',
+    };
+    const STORY_PREVIEW_ARCHETYPE_DRIVE = {
+      'The Hero': 'rally people who stopped believing',
+      'The Rebel': 'ignite change before fear hardens into policy',
+      'The Outlaw': 'stay free while a bigger predator closes in',
+      'The Explorer': 'cross forbidden ground before rivals claim it',
+      'The Survivor': 'keep their circle alive when resources fail',
+      'The Everyman': 'hold to ordinary decency under extraordinary pressure',
+      'The Lover': 'choose between devotion and responsibility',
+      'The Caregiver': 'protect others without losing themselves',
+      'The Ruler': 'preserve order while legitimacy fractures',
+      'The Sage': 'prove the truth before power buries it',
+      'The Magician': 'control a gift that grows beyond intention',
+      'The Detective': 'unmask the lie everyone depends on',
+      'The Huntress': 'track a target that keeps changing shape',
+      'The Sorceress': 'pay the cost of wielding forbidden power',
+      'The Oracle': 'interpret a prophecy that implicates them directly',
+      'The Strategist': 'win a losing game with incomplete information',
+      'The Soldier': 'obey orders that conflict with conscience',
+      'The Ronin': 'honor a vow that no longer serves justice',
+      'The Queen': 'defend the crown against allies as dangerous as enemies',
+      'The Empress': 'expand influence before rivals redraw the map',
+      'The Valkyrie': 'choose mercy or victory when both cannot survive',
+      'The Priestess': 'guard sacred knowledge from political hands',
+      'The Creator': 'finish a breakthrough before it is weaponized',
+      'The Hacker': 'break the system before the system profiles them',
+      'The Innocent': 'grow quickly without becoming cruel',
+      'The Jester': 'turn mockery into leverage against authority',
+      'The Drifter': 'decide whether to belong or keep running',
+      'The Artist': 'create something true while censors close in',
+      'The Aristocrat': 'risk status to protect a forbidden truth',
+      'The Pilot': 'deliver the impossible route through hostile skies',
+    };
 
     // ─── STATE ───────────────────────────────────────────────
     const S = {
@@ -3641,6 +3808,7 @@
       const homeBtn = document.getElementById('btn-home');
       if (hudBtn) hudBtn.classList.toggle('hud-hidden', name !== 'game');
       if (homeBtn) homeBtn.classList.toggle('home-hidden', name === 'setup');
+      if (name === 'setup') renderStoryPreview();
       if (name === 'game') applyHudState();
       if (A.lastScreen !== name) {
         A.lastScreen = name;
@@ -3846,6 +4014,78 @@
     }
 
     /* ─── SETUP SCREEN ─────────────────────────────────────── */
+    function storyPreviewThemeForGenre(genre) {
+      const key = GENRE_CFG[genre]?.key || 'noir';
+      return STORY_PREVIEW_THEME[key] || STORY_PREVIEW_THEME.noir;
+    }
+
+    function storyPreviewPeriod(era) {
+      const value = String(era || '').trim();
+      if (!value) return 'an unassigned era';
+      return value.replace(/\s*\([^)]*\)\s*$/, '').trim() || value;
+    }
+
+    function storyPreviewModel() {
+      const genre = S.genre;
+      const era = S.era;
+      const archetype = S.archetype;
+      const selectedCount = setupSelectionCount();
+      const theme = storyPreviewThemeForGenre(genre);
+      const eraAtmosphere = STORY_PREVIEW_ERA_ATMOSPHERE[era]
+        || 'old rules are failing faster than new ones can form';
+      const eraScene = STORY_PREVIEW_ERA_SCENE[era] || 'at the edge of a turning age';
+      const archetypeLens = STORY_PREVIEW_ARCHETYPE_LENS[archetype]
+        || 'uncertain, adaptive, and pulled in opposite directions';
+      const archetypeDrive = STORY_PREVIEW_ARCHETYPE_DRIVE[archetype]
+        || 'decide what they can carry without losing themselves';
+      const lead = archetype || 'The Protagonist';
+      const period = storyPreviewPeriod(era);
+      const complete = Boolean(genre && era && archetype);
+      let tone = `${theme.tone}.`;
+      if (era && archetype) {
+        tone += ` In ${period}, ${eraAtmosphere}, and the protagonist feels ${archetypeLens}.`;
+      } else if (era) {
+        tone += ` In ${period}, ${eraAtmosphere}.`;
+      } else if (archetype) {
+        tone += ` The protagonist feels ${archetypeLens}.`;
+      } else {
+        tone += ' Pick an era and archetype to sharpen the mood.';
+      }
+
+      return {
+        tone,
+        conflict: `${lead} must ${archetypeDrive} in ${period}, while ${theme.conflict}.`,
+        opening: `"${theme.opening} ${eraScene}, ${lead} realized the next choice would change everything."`,
+        meta: complete
+          ? 'Live forecast locked.'
+          : selectedCount > 0
+            ? 'Forecast updating as you choose.'
+            : 'Updates live as you choose.',
+        complete,
+        selectedCount,
+      };
+    }
+
+    function renderStoryPreview() {
+      const toneEl = document.getElementById('story-preview-tone');
+      const conflictEl = document.getElementById('story-preview-conflict');
+      const openingEl = document.getElementById('story-preview-opening');
+      if (!toneEl || !conflictEl || !openingEl) return;
+
+      const preview = storyPreviewModel();
+      toneEl.textContent = preview.tone;
+      conflictEl.textContent = preview.conflict;
+      openingEl.textContent = preview.opening;
+
+      const panelEl = document.getElementById('story-preview-panel');
+      if (panelEl) {
+        panelEl.classList.toggle('is-partial', preview.selectedCount > 0 && !preview.complete);
+        panelEl.classList.toggle('is-complete', preview.complete);
+      }
+      const metaEl = document.getElementById('story-preview-meta');
+      if (metaEl) metaEl.textContent = preview.meta;
+    }
+
     function optionButtonForLabel(gridId, label) {
       const grid = document.getElementById(gridId);
       if (!grid) return null;
@@ -3908,6 +4148,7 @@
           grid.querySelectorAll('.opt').forEach(b => b.classList.remove('sel'));
           btn.classList.add('sel');
           S[stateKey] = label;
+          renderStoryPreview();
           trackEvent('selection_changed', gaStoryParams({
             field: gaSafe(stateKey, 16),
             value: gaSafe(label, 64),
@@ -4009,6 +4250,7 @@
         const el = document.getElementById(`${k}-chosen`);
         if (el) el.textContent = '';
       });
+      renderStoryPreview();
       updateSetupHud();
       const setupEl = document.getElementById('screen-setup');
       if (setupEl) setupEl.scrollTop = 0;
@@ -5884,6 +6126,7 @@
       showScreen('setup');
       renderSetupHistory();
       checkReady();
+      renderStoryPreview();
 
       trackEvent('app_ready', gaStoryParams({
         lambda_configured: Number(Boolean(S.lambdaUrl)),
