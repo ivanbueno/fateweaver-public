@@ -2989,11 +2989,28 @@
     const STORY_IMAGE_KEY_PREFIX = 'visualnovel_story_images_';
     const PROGRESS_KEY_PREFIX = 'visualnovel_progress_';
     const LEGACY_STORY_ARCHIVE_PREFIX = 'visualnovel_completed_story_';
+    const ROUTE_ARCHIVE_KEY = 'visualnovel_route_archive_v1';
     const MAX_STORED_IMAGE_DATA_CHARS = 25_000_000;
     const MAX_STORED_SVG_DATA_CHARS = 2_000_000;
     const STORY_IMAGE_DB_NAME = 'visualnovel_story_image_cache';
     const STORY_IMAGE_DB_VERSION = 1;
     const STORY_IMAGE_DB_STORE = 'images';
+    const FINAL_ENDING_PAGE_IDS = Object.freeze([
+      'page_8_good',
+      'page_8_good_alt',
+      'page_8_neutral_a',
+      'page_8_neutral_b',
+      'page_8_bad',
+      'page_8_bad_alt',
+    ]);
+    const ENDING_SLOT_META = Object.freeze({
+      page_8_good: Object.freeze({ pageId: 'page_8_good', outcome: 'good', variant: 'I', slotIndex: 0 }),
+      page_8_good_alt: Object.freeze({ pageId: 'page_8_good_alt', outcome: 'good', variant: 'II', slotIndex: 1 }),
+      page_8_neutral_a: Object.freeze({ pageId: 'page_8_neutral_a', outcome: 'neutral', variant: 'I', slotIndex: 2 }),
+      page_8_neutral_b: Object.freeze({ pageId: 'page_8_neutral_b', outcome: 'neutral', variant: 'II', slotIndex: 3 }),
+      page_8_bad: Object.freeze({ pageId: 'page_8_bad', outcome: 'bad', variant: 'I', slotIndex: 4 }),
+      page_8_bad_alt: Object.freeze({ pageId: 'page_8_bad_alt', outcome: 'bad', variant: 'II', slotIndex: 5 }),
+    });
     let storyImageDbPromise = null;
     const storyImageWriteQueue = new Map();
 
@@ -3034,6 +3051,53 @@
       } catch {
         return false;
       }
+    }
+
+    function emptyRouteArchive() {
+      return { version: 1, genres: {} };
+    }
+
+    function loadRouteArchive() {
+      const stored = lsGet(ROUTE_ARCHIVE_KEY);
+      if (!stored || typeof stored !== 'object') return emptyRouteArchive();
+
+      const genres = {};
+      Object.entries(stored.genres || {}).forEach(([rawKey, rawBucket]) => {
+        if (!rawBucket || typeof rawBucket !== 'object') return;
+        const genre = normalizeStoryText(rawBucket.genre || rawKey, 80) || rawKey;
+        const key = slug(genre) || slug(rawKey);
+        if (!key) return;
+        genres[key] = {
+          genre,
+          totalRuns: Number(rawBucket.totalRuns) || 0,
+          lastPlayedAt: Number(rawBucket.lastPlayedAt) || 0,
+          seenEndings: (rawBucket.seenEndings && typeof rawBucket.seenEndings === 'object') ? rawBucket.seenEndings : {},
+          routes: (rawBucket.routes && typeof rawBucket.routes === 'object') ? rawBucket.routes : {},
+        };
+      });
+
+      return { version: 1, genres };
+    }
+
+    function saveRouteArchive(archive) {
+      return lsSet(ROUTE_ARCHIVE_KEY, archive && typeof archive === 'object' ? archive : emptyRouteArchive());
+    }
+
+    function ensureRouteArchiveGenreBucket(archive, genre) {
+      if (!archive || typeof archive !== 'object') return null;
+      const key = slug(genre);
+      if (!key) return null;
+      if (!archive.genres || typeof archive.genres !== 'object') archive.genres = {};
+      if (!archive.genres[key] || typeof archive.genres[key] !== 'object') {
+        archive.genres[key] = { genre, totalRuns: 0, lastPlayedAt: 0, seenEndings: {}, routes: {} };
+      }
+      const bucket = archive.genres[key];
+      bucket.genre = normalizeStoryText(bucket.genre || genre, 80) || genre;
+      if (!bucket.seenEndings || typeof bucket.seenEndings !== 'object') bucket.seenEndings = {};
+      if (!bucket.routes || typeof bucket.routes !== 'object') bucket.routes = {};
+      bucket.totalRuns = Number(bucket.totalRuns) || 0;
+      bucket.lastPlayedAt = Number(bucket.lastPlayedAt) || 0;
+      return bucket;
     }
 
     function removeLegacyStoredStoryImagesLocal(imageStorageKey) {
@@ -3801,6 +3865,284 @@
         listEl.appendChild(link);
         void hydrateSetupHistoryLinkImage(link, entry, renderVersion);
       });
+    }
+
+    function genreOutcomeLabel(genre, outcome) {
+      return (GENRE_PATH_OUTCOMES[genre] || {})[outcome]
+        || (GENRE_PATH_OUTCOMES[genre] || {}).good
+        || String(outcome || 'Unknown').replace(/^./, ch => ch.toUpperCase());
+    }
+
+    function endingSlotMeta(pageId, genre = S.genre) {
+      const base = ENDING_SLOT_META[pageId] || {
+        pageId,
+        outcome: inferOutcomeFromPageId(pageId) || 'good',
+        variant: 'I',
+        slotIndex: Number.MAX_SAFE_INTEGER,
+      };
+      const familyLabel = genreOutcomeLabel(genre, base.outcome);
+      return {
+        ...base,
+        familyLabel,
+        slotLabel: `${familyLabel} ${base.variant}`.trim(),
+      };
+    }
+
+    function routePathIdsFromChoices(choices = S.choicesMade, finalPageId = S.currentPageId, story = S.story) {
+      const pages = story?.pages || {};
+      const ids = [];
+      const pushId = id => {
+        if (!id || !pages[id]) return;
+        if (ids[ids.length - 1] === id) return;
+        ids.push(id);
+      };
+
+      pushId('page_1');
+
+      let priorPageId = 'page_1';
+      (choices || []).forEach(rawChoice => {
+        const record = resolveChoiceRecord(rawChoice, priorPageId, story);
+        if (!record.toPageId || !pages[record.toPageId]) return;
+        pushId(record.toPageId);
+        priorPageId = record.toPageId;
+      });
+
+      pushId(finalPageId);
+      return ids;
+    }
+
+    function currentRouteSignature(finalPageId = S.currentPageId) {
+      return routePathIdsFromChoices(S.choicesMade, finalPageId, S.story).join('>');
+    }
+
+    function routeBeatVectorFromPath(pathIds) {
+      return (pathIds || [])
+        .slice(1)
+        .slice(0, Math.max(0, BEAT_NAMES.length - 1))
+        .map(pageId => inferOutcomeFromPageId(pageId) || 'unknown');
+    }
+
+    function routeDecisionPreview(choices = S.choicesMade, story = S.story) {
+      const decisions = [];
+      let priorPageId = 'page_1';
+      (choices || []).forEach(rawChoice => {
+        const record = resolveChoiceRecord(rawChoice, priorPageId, story);
+        if (!record.toPageId) return;
+        decisions.push(record.label || `Advanced to ${resumeCheckpointLabel(record.toPageId)}`);
+        priorPageId = record.toPageId;
+      });
+      return decisions;
+    }
+
+    function currentRouteArchivePayload(assessment, endingType) {
+      if (!S.story?.pages || !S.genre || !S.currentPageId) return null;
+      const playedAt = Date.now();
+      const finalPageId = S.currentPageId;
+      const slot = endingSlotMeta(finalPageId, S.genre);
+      const pathIds = routePathIdsFromChoices(S.choicesMade, finalPageId, S.story);
+      const title = normalizeStoryText(S.story?.title, 120) || 'Untitled Chronicle';
+      const tagline = normalizeStoryText(S.story?.tagline, 220) || '';
+      return {
+        signature: pathIds.join('>'),
+        finalPageId,
+        endingType: endingType || slot.outcome,
+        slot,
+        title,
+        tagline,
+        genre: S.genre,
+        era: S.era,
+        archetype: S.archetype,
+        routeLabel: routeLabel(S.genre, S.archetype, slot.outcome),
+        beatVector: routeBeatVectorFromPath(pathIds),
+        decisions: routeDecisionPreview(S.choicesMade, S.story),
+        playedAt,
+        decisionCount: S.choicesMade.length,
+        runtimeMs: S.storyRunStartedAt ? Math.max(0, playedAt - S.storyRunStartedAt) : 0,
+        score: Number(assessment?.score) || 0,
+        rank: endingRank(Number(assessment?.score) || 0),
+      };
+    }
+
+    function recordCurrentRouteArchive(assessment, endingType) {
+      const payload = currentRouteArchivePayload(assessment, endingType);
+      if (!payload) return null;
+
+      const archive = loadRouteArchive();
+      const bucket = ensureRouteArchiveGenreBucket(archive, payload.genre);
+      if (!bucket) return null;
+      const now = payload.playedAt;
+
+      const existingRoute = bucket.routes[payload.signature] || {};
+      bucket.routes[payload.signature] = {
+        ...existingRoute,
+        signature: payload.signature,
+        finalPageId: payload.finalPageId,
+        endingType: payload.endingType,
+        outcome: payload.slot.outcome,
+        slotLabel: payload.slot.slotLabel,
+        routeLabel: payload.routeLabel,
+        title: payload.title,
+        tagline: payload.tagline,
+        genre: payload.genre,
+        era: payload.era,
+        archetype: payload.archetype,
+        beatVector: payload.beatVector,
+        decisions: payload.decisions,
+        decisionCount: payload.decisionCount,
+        runtimeMs: payload.runtimeMs,
+        playCount: (Number(existingRoute.playCount) || 0) + 1,
+        firstPlayedAt: Number(existingRoute.firstPlayedAt) || now,
+        lastPlayedAt: now,
+        bestScore: Math.max(Number(existingRoute.bestScore) || 0, payload.score),
+        lastScore: payload.score,
+        rank: payload.rank,
+      };
+
+      const existingEnding = bucket.seenEndings[payload.finalPageId] || {};
+      bucket.seenEndings[payload.finalPageId] = {
+        ...existingEnding,
+        pageId: payload.finalPageId,
+        endingType: payload.endingType,
+        outcome: payload.slot.outcome,
+        slotLabel: payload.slot.slotLabel,
+        title: payload.title,
+        tagline: payload.tagline,
+        era: payload.era,
+        archetype: payload.archetype,
+        firstSeenAt: Number(existingEnding.firstSeenAt) || now,
+        lastSeenAt: now,
+        seenCount: (Number(existingEnding.seenCount) || 0) + 1,
+        bestScore: Math.max(Number(existingEnding.bestScore) || 0, payload.score),
+        lastScore: payload.score,
+        lastRouteSignature: payload.signature,
+      };
+
+      bucket.totalRuns = (Number(bucket.totalRuns) || 0) + 1;
+      bucket.lastPlayedAt = now;
+      saveRouteArchive(archive);
+      return bucket.routes[payload.signature];
+    }
+
+    function routeArchiveSort(a, b) {
+      const playCountDelta = (Number(b?.playCount) || 0) - (Number(a?.playCount) || 0);
+      if (playCountDelta) return playCountDelta;
+      const scoreDelta = (Number(b?.bestScore) || 0) - (Number(a?.bestScore) || 0);
+      if (scoreDelta) return scoreDelta;
+      return (Number(b?.lastPlayedAt) || 0) - (Number(a?.lastPlayedAt) || 0);
+    }
+
+    function genreRouteArchiveSummary(genre) {
+      const safeGenre = normalizeStoryText(genre, 80) || '';
+      const archive = loadRouteArchive();
+      const bucket = safeGenre ? archive.genres?.[slug(safeGenre)] : null;
+      const routes = Object.values(bucket?.routes || {}).sort(routeArchiveSort);
+      const slots = FINAL_ENDING_PAGE_IDS.map(pageId => {
+        const slot = endingSlotMeta(pageId, safeGenre);
+        const seen = bucket?.seenEndings?.[pageId] || null;
+        const lastRoute = seen?.lastRouteSignature ? (bucket?.routes?.[seen.lastRouteSignature] || null) : null;
+        return {
+          ...slot,
+          seen: Boolean(seen),
+          seenCount: Number(seen?.seenCount) || 0,
+          bestScore: Number(seen?.bestScore) || 0,
+          lastScore: Number(seen?.lastScore) || 0,
+          alignment: normalizeStoryText(endingStatusForGenre(safeGenre, slot.outcome)?.alignment, 48) || '',
+          lastRoute,
+        };
+      });
+
+      return {
+        genre: safeGenre,
+        seenCount: slots.filter(slot => slot.seen).length,
+        totalEndings: FINAL_ENDING_PAGE_IDS.length,
+        totalRuns: Number(bucket?.totalRuns) || 0,
+        lastPlayedAt: Number(bucket?.lastPlayedAt) || 0,
+        slots,
+        routes,
+      };
+    }
+
+    function buildRouteVectorEl(beatVector = [], compact = false) {
+      const el = document.createElement('div');
+      el.className = `route-vector${compact ? ' compact' : ''}`;
+      for (let idx = 0; idx < Math.max(0, BEAT_NAMES.length - 1); idx++) {
+        const outcome = beatVector[idx] || 'unknown';
+        const step = document.createElement('span');
+        step.className = `route-vector-step ${outcome}`;
+        step.title = `Beat ${romanBeat(idx + 1)} → ${String(outcome || 'unknown').toUpperCase()}`;
+        el.appendChild(step);
+      }
+      return el;
+    }
+
+    function renderEndingArchive() {
+      const noteEl = document.getElementById('ending-archive-note');
+      const metaEl = document.getElementById('ending-archive-meta');
+      const galleryEl = document.getElementById('ending-gallery');
+      if (!noteEl || !metaEl || !galleryEl) return;
+
+      const summary = genreRouteArchiveSummary(S.genre);
+
+      noteEl.textContent = `Seen ${summary.seenCount} of ${summary.totalEndings} endings in ${S.genre || 'this genre'}`;
+      metaEl.textContent = `${summary.totalRuns || 0} cleared route${summary.totalRuns === 1 ? '' : 's'} logged`;
+
+      galleryEl.innerHTML = '';
+      const galleryFrag = document.createDocumentFragment();
+      summary.slots.forEach(slot => {
+        const card = document.createElement('article');
+        card.className = `ending-gallery-card ${slot.outcome}${slot.seen ? ' is-seen' : ' is-hidden'}${slot.pageId === S.currentPageId ? ' is-current' : ''}`;
+
+        const head = document.createElement('div');
+        head.className = 'ending-gallery-card-head';
+
+        const heading = document.createElement('div');
+        heading.className = 'ending-gallery-card-heading';
+
+        const title = document.createElement('p');
+        title.className = 'ending-gallery-card-title';
+        title.textContent = slot.slotLabel;
+
+        heading.appendChild(title);
+
+        if (slot.alignment) {
+          const alignment = document.createElement('p');
+          alignment.className = `ending-gallery-card-alignment ${slot.outcome}`;
+          alignment.textContent = slot.alignment;
+          heading.appendChild(alignment);
+        }
+
+        const badge = document.createElement('span');
+        badge.className = 'ending-gallery-card-badge';
+        badge.textContent = slot.seen ? `Seen ${slot.seenCount}` : 'Unseen';
+
+        head.appendChild(heading);
+        head.appendChild(badge);
+        card.appendChild(head);
+
+        if (slot.seen && slot.bestScore > 0) {
+          const scoreRow = document.createElement('div');
+          scoreRow.className = 'ending-gallery-card-score';
+
+          const scoreLabel = document.createElement('span');
+          scoreLabel.className = 'ending-gallery-card-score-label';
+          scoreLabel.textContent = 'Best Score';
+
+          const scoreValue = document.createElement('span');
+          scoreValue.className = `ending-gallery-card-score-value ${slot.outcome}`;
+          scoreValue.textContent = String(slot.bestScore).padStart(3, '0');
+
+          scoreRow.appendChild(scoreValue);
+          scoreRow.appendChild(scoreLabel);
+          card.appendChild(scoreRow);
+        }
+
+        if (slot.lastRoute?.beatVector?.length) {
+          card.appendChild(buildRouteVectorEl(slot.lastRoute.beatVector, true));
+        }
+
+        galleryFrag.appendChild(card);
+      });
+      galleryEl.appendChild(galleryFrag);
     }
 
     /* ─── LAMBDA FETCH ─────────────────────────────────────── */
@@ -5856,35 +6198,6 @@
       });
     }
 
-    function stateEffectScore(effects, story = S.story) {
-      const defs = storyStateConfig(story);
-      let score = 0;
-      let hasAny = false;
-
-      Object.entries(effects || {}).forEach(([key, value]) => {
-        const def = defs[key];
-        if (!def) return;
-        hasAny = true;
-        const direction = def.direction === 'lower' ? -1 : 1;
-        const weight = Number(def.weight) || 1;
-        if (def.kind === 'flag') {
-          score += (value ? 1 : -1) * direction * weight;
-          return;
-        }
-        score += (Number(value) || 0) * direction * weight;
-      });
-
-      return { score, hasAny };
-    }
-
-    function stateImpactClass(effects, fallbackOutcome = '') {
-      const { score, hasAny } = stateEffectScore(effects, S.story);
-      if (!hasAny) return normalizeOutcome(fallbackOutcome) || 'unknown';
-      if (score > 0.2) return 'good';
-      if (score < -0.2) return 'bad';
-      return 'neutral';
-    }
-
     function choiceOutcomeClass(outcome) {
       const normalized = normalizeOutcome(outcome);
       if (normalized === 'good' || normalized === 'neutral' || normalized === 'bad') {
@@ -5917,140 +6230,24 @@
       return `${parts.slice(0, maxItems).join(' • ')} • +${parts.length - maxItems} more`;
     }
 
-    function triggerChoiceRipple(btn, evt) {
-      if (!(btn instanceof HTMLElement)) return;
-      const rect = btn.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-
-      const ripple = document.createElement('span');
-      ripple.className = 'choice-ripple';
-
-      const pointerX = Number(evt?.clientX);
-      const pointerY = Number(evt?.clientY);
-      const useCenter = evt?.detail === 0 || !Number.isFinite(pointerX) || !Number.isFinite(pointerY);
-      const x = useCenter ? rect.width / 2 : pointerX - rect.left;
-      const y = useCenter ? rect.height / 2 : pointerY - rect.top;
-      const diameter = Math.max(rect.width, rect.height) * 1.16;
-
-      ripple.style.left = `${x.toFixed(1)}px`;
-      ripple.style.top = `${y.toFixed(1)}px`;
-      ripple.style.width = `${diameter.toFixed(1)}px`;
-      ripple.style.height = `${diameter.toFixed(1)}px`;
-
-      btn.appendChild(ripple);
-      ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+    function choiceMomentumStep(rawDelta) {
+      const normalized = Math.round((Number(rawDelta) || 0) * 10) / 10;
+      if (normalized > 0.05) return 1.6;
+      if (normalized < -0.05) return -1.6;
+      return 0;
     }
 
-    function renderChoices(page) {
-      const container = document.getElementById('choices');
-      container.innerHTML = '';
-      container.classList.remove('is-selecting');
-      S.choiceInFlight = false;
-      if (page.choices && page.choices.length > 0) {
-        shuffle(page.choices).forEach((c, idx) => {
-          const effectClass = choiceOutcomeClass(stateImpactClass(normalizeChoiceEffects(c.effects, c), c.outcome));
-          const btn = document.createElement('button');
-          btn.className = `choice-btn ${effectClass}`;
-          btn.style.setProperty('--choice-delay', `${idx * 70}ms`);
-          btn.innerHTML = `<span class="choice-index">${idx + 1}</span><span class="choice-label">${esc(c.label)}</span><span class="choice-arrow">→</span>`;
-          btn.setAttribute('aria-label', c.label);
-          btn.onclick = evt => makeChoice(c, btn, evt);
-          container.appendChild(btn);
-        });
-      } else {
-        // Final page — show "See Fate" button
-        const btn = document.createElement('button');
-        btn.className = 'choice-btn ending-btn';
-        btn.style.setProperty('--choice-delay', '0ms');
-        btn.innerHTML = `<span class="choice-index">✦</span><span class="choice-label">See Your Fate</span><span class="choice-arrow">→</span>`;
-        btn.onclick   = () => showEnding(determineEnding(state_currentId()));
-        container.appendChild(btn);
-      }
+    function serializeChoiceRecord(record) {
+      return {
+        from: record?.fromPageId || record?.from || '',
+        to: record?.toPageId || record?.to || '',
+        label: record?.label || '',
+        outcome: record?.outcome || null,
+        effects: record?.effects || {},
+      };
     }
 
-    function state_currentId() { return S.currentPageId; }
-
-    async function makeChoice(choiceLike, sourceBtn = null, evt = null) {
-      const record = resolveChoiceRecord({ ...choiceLike, from: S.currentPageId }, S.currentPageId);
-      if (!record.toPageId || S.choiceInFlight) return;
-      S.choiceInFlight = true;
-
-      const visualOutcomeClass = choiceOutcomeClass(stateImpactClass(record.effects, record.outcome));
-      const container = document.getElementById('choices');
-
-      if (container) {
-        container.classList.add('is-selecting');
-        container.querySelectorAll('.choice-btn').forEach(btn => {
-          btn.disabled = true;
-          btn.setAttribute('aria-disabled', 'true');
-          btn.classList.remove(
-            'is-selected',
-            'choice-outcome-good',
-            'choice-outcome-neutral',
-            'choice-outcome-bad',
-            'choice-outcome-unknown'
-          );
-        });
-      }
-
-      if (sourceBtn instanceof HTMLElement) {
-        sourceBtn.classList.add('is-selected', visualOutcomeClass);
-        sourceBtn.setAttribute('aria-pressed', 'true');
-        triggerChoiceRipple(sourceBtn, evt);
-      }
-
-      trackEvent('story_choice_made', gaStoryParams({
-        from_page: gaSafe(S.currentPageId, 24),
-        to_page: gaSafe(record.toPageId, 24),
-        outcome: gaSafe(record.outcome || 'unknown', 24),
-        state_impact: gaSafe(stateImpactClass(record.effects, record.outcome), 24),
-        choice_depth: S.choicesMade.length + 1,
-      }));
-      S.choicesMade.push({
-        from: S.currentPageId,
-        to: record.toPageId,
-        label: record.label || '',
-        outcome: record.outcome || null,
-        effects: record.effects,
-      });
-      S.storyState = applyChoiceEffects(S.storyState, record.effects, S.story);
-      try {
-        await new Promise(resolve => setTimeout(resolve, CHOICE_FEEDBACK_HOLD_MS));
-        renderPage(record.toPageId);
-      } finally {
-        S.choiceInFlight = false;
-      }
-    }
-
-    function determineEnding(pageId) {
-      return storyStateAssessment(syncStoryState(), pageId || S.currentPageId).type;
-    }
-
-    function endingCopyFor(type) {
-      const genreCopy = ENDING_COPY[S.genre] || ENDING_COPY.default;
-      return genreCopy[type] || ENDING_COPY.default[type] || ENDING_COPY.default.good;
-    }
-
-    function endingStatusFor(type) {
-      const statusType = (type === 'neutral' || type === 'bad') ? type : 'good';
-      const themeKey = GENRE_CFG[S.genre]?.key || 'default';
-      const themeStatus = ENDING_STATUS[themeKey] || ENDING_STATUS.default;
-      return themeStatus[statusType] || ENDING_STATUS.default[statusType] || ENDING_STATUS.default.good;
-    }
-
-    function endingRecapLabel(type) {
-      const alignment = endingStatusFor(type)?.alignment;
-      return alignment ? String(alignment).toLowerCase() : type;
-    }
-
-    function formatRuntime(ms) {
-      const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
-      const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
-      const ss = String(totalSec % 60).padStart(2, '0');
-      return `${mm}:${ss}`;
-    }
-
-    function storyStateAssessment(state = S.storyState, pageId = S.currentPageId, story = S.story) {
+    function storyStateCoreAssessment(state = S.storyState, pageId = S.currentPageId, story = S.story) {
       const defs = storyStateConfig(story);
       const snapshot = normalizeStoryStateSnapshot(state, story);
       const metrics = Object.entries(defs).map(([key, def]) => {
@@ -6082,6 +6279,9 @@
       }).sort((a, b) => b.influence - a.influence || a.label.localeCompare(b.label));
 
       const totalWeight = metrics.reduce((sum, metric) => sum + metric.weight, 0) || 1;
+      metrics.forEach(metric => {
+        metric.scoreImpact = Math.round((((metric.oriented - 0.5) * metric.weight) / totalWeight) * 1000) / 10;
+      });
       const baseScore = Math.round((metrics.reduce((sum, metric) => sum + (metric.oriented * metric.weight), 0) / totalWeight) * 100);
       const pathNudge = (() => {
         const outcome = inferOutcomeFromPageId(pageId || '');
@@ -6089,10 +6289,308 @@
         if (outcome === 'bad') return -6;
         return 0;
       })();
-      const score = Math.max(8, Math.min(99, baseScore + pathNudge));
+      const rawScore = baseScore + pathNudge;
+
+      return { metrics, snapshot, baseScore, pathNudge, rawScore };
+    }
+
+    function choiceScoreComponents(record, options = {}) {
+      const story = options.story || S.story;
+      const beforePageId = options.beforePageId || record?.fromPageId || record?.from || S.currentPageId || 'page_1';
+      const beforeState = normalizeStoryStateSnapshot(
+        options.beforeState || createInitialStoryState(story),
+        story
+      );
+      const beforeCore = storyStateCoreAssessment(beforeState, beforePageId, story);
+
+      if (!record?.toPageId && !record?.to) {
+        return {
+          rawDelta: 0,
+          momentumStep: 0,
+          beforeCore,
+          afterCore: beforeCore,
+          beforeState,
+          afterState: beforeState,
+          beforePageId,
+          afterPageId: beforePageId,
+        };
+      }
+
+      const afterPageId = record.toPageId || record.to || beforePageId;
+      const afterState = applyChoiceEffects(beforeState, record.effects, story);
+      const afterCore = storyStateCoreAssessment(afterState, afterPageId, story);
+      const rawDelta = Math.round(((Number(afterCore.rawScore) - Number(beforeCore.rawScore)) || 0) * 10) / 10;
+      const momentumStep = choiceMomentumStep(rawDelta);
+
+      return {
+        rawDelta,
+        momentumStep,
+        beforeCore,
+        afterCore,
+        beforeState,
+        afterState,
+        beforePageId,
+        afterPageId,
+      };
+    }
+
+    function choiceScoreImpact(record, options = {}) {
+      const story = options.story || S.story;
+      const beforeChoices = Array.isArray(options.beforeChoices)
+        ? options.beforeChoices.slice()
+        : (Array.isArray(S.choicesMade) ? S.choicesMade.slice() : []);
+      const beforePageId = options.beforePageId || record?.fromPageId || record?.from || S.currentPageId || 'page_1';
+      const beforeState = normalizeStoryStateSnapshot(
+        options.beforeState || buildStoryStateFromChoices(beforeChoices, story),
+        story
+      );
+      const components = choiceScoreComponents(record, {
+        beforeState,
+        beforePageId,
+        story,
+      });
+      const nextChoice = (record?.toPageId || record?.to) ? serializeChoiceRecord(record) : null;
+      const afterChoices = nextChoice ? beforeChoices.concat(nextChoice) : beforeChoices;
+      const beforeAssessment = storyStateAssessment(beforeState, beforePageId, story, beforeChoices);
+      const afterAssessment = storyStateAssessment(components.afterState, components.afterPageId, story, afterChoices);
+      const delta = Math.round(((Number(afterAssessment.score) - Number(beforeAssessment.score)) || 0) * 10) / 10;
+      const impactClass = delta > 0.05 ? 'good' : delta < -0.05 ? 'bad' : 'neutral';
+
+      return {
+        ...components,
+        delta,
+        impactClass,
+        beforeAssessment,
+        afterAssessment,
+        beforeChoices,
+        afterChoices,
+      };
+    }
+
+    function formatChoiceRatingImpact(delta) {
+      return `Rating ${formatScoreImpact(delta)}`;
+    }
+
+    function formatChoiceImpactSummary(record, impact, options = {}) {
+      const ratingText = formatChoiceRatingImpact(impact?.delta);
+      const stateText = formatChoiceEffectsSummary(record?.effects, options);
+      if (!stateText || stateText === 'Impact unresolved') return ratingText;
+      return `${ratingText} • ${stateText}`;
+    }
+
+    function triggerChoiceRipple(btn, evt) {
+      if (!(btn instanceof HTMLElement)) return;
+      const rect = btn.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const ripple = document.createElement('span');
+      ripple.className = 'choice-ripple';
+
+      const pointerX = Number(evt?.clientX);
+      const pointerY = Number(evt?.clientY);
+      const useCenter = evt?.detail === 0 || !Number.isFinite(pointerX) || !Number.isFinite(pointerY);
+      const x = useCenter ? rect.width / 2 : pointerX - rect.left;
+      const y = useCenter ? rect.height / 2 : pointerY - rect.top;
+      const diameter = Math.max(rect.width, rect.height) * 1.16;
+
+      ripple.style.left = `${x.toFixed(1)}px`;
+      ripple.style.top = `${y.toFixed(1)}px`;
+      ripple.style.width = `${diameter.toFixed(1)}px`;
+      ripple.style.height = `${diameter.toFixed(1)}px`;
+
+      btn.appendChild(ripple);
+      ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+    }
+
+    function renderChoices(page) {
+      const container = document.getElementById('choices');
+      container.innerHTML = '';
+      container.classList.remove('is-selecting');
+      S.choiceInFlight = false;
+      const currentState = syncStoryState();
+      const currentChoices = Array.isArray(S.choicesMade) ? S.choicesMade.slice() : [];
+      if (page.choices && page.choices.length > 0) {
+        shuffle(page.choices).forEach((c, idx) => {
+          const previewRecord = resolveChoiceRecord({ ...c, from: S.currentPageId }, S.currentPageId);
+          const previewImpact = choiceScoreImpact(previewRecord, {
+            beforeState: currentState,
+            beforeChoices: currentChoices,
+            beforePageId: S.currentPageId,
+            story: S.story,
+          });
+          const effectClass = choiceOutcomeClass(previewImpact.impactClass);
+          const btn = document.createElement('button');
+          btn.className = `choice-btn ${effectClass}`;
+          btn.style.setProperty('--choice-delay', `${idx * 70}ms`);
+          btn.innerHTML = `<span class="choice-index">${idx + 1}</span><span class="choice-label">${esc(c.label)}</span><span class="choice-arrow">→</span>`;
+          btn.setAttribute('aria-label', c.label);
+          btn.onclick = evt => makeChoice(c, btn, evt);
+          container.appendChild(btn);
+        });
+      } else {
+        // Final page — show "See Fate" button
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn ending-btn';
+        btn.style.setProperty('--choice-delay', '0ms');
+        btn.innerHTML = `<span class="choice-index">✦</span><span class="choice-label">See Your Fate</span><span class="choice-arrow">→</span>`;
+        btn.onclick   = () => showEnding(determineEnding(state_currentId()));
+        container.appendChild(btn);
+      }
+    }
+
+    function state_currentId() { return S.currentPageId; }
+
+    async function makeChoice(choiceLike, sourceBtn = null, evt = null) {
+      const record = resolveChoiceRecord({ ...choiceLike, from: S.currentPageId }, S.currentPageId);
+      if (!record.toPageId || S.choiceInFlight) return;
+      S.choiceInFlight = true;
+
+      const currentState = syncStoryState();
+      const currentChoices = Array.isArray(S.choicesMade) ? S.choicesMade.slice() : [];
+      const choiceImpact = choiceScoreImpact(record, {
+        beforeState: currentState,
+        beforeChoices: currentChoices,
+        beforePageId: S.currentPageId,
+        story: S.story,
+      });
+      const visualOutcomeClass = choiceOutcomeClass(choiceImpact.impactClass);
+      const container = document.getElementById('choices');
+
+      if (container) {
+        container.classList.add('is-selecting');
+        container.querySelectorAll('.choice-btn').forEach(btn => {
+          btn.disabled = true;
+          btn.setAttribute('aria-disabled', 'true');
+          btn.classList.remove(
+            'is-selected',
+            'choice-outcome-good',
+            'choice-outcome-neutral',
+            'choice-outcome-bad',
+            'choice-outcome-unknown'
+          );
+        });
+      }
+
+      if (sourceBtn instanceof HTMLElement) {
+        sourceBtn.classList.add('is-selected', visualOutcomeClass);
+        sourceBtn.setAttribute('aria-pressed', 'true');
+        triggerChoiceRipple(sourceBtn, evt);
+      }
+
+      trackEvent('story_choice_made', gaStoryParams({
+        from_page: gaSafe(S.currentPageId, 24),
+        to_page: gaSafe(record.toPageId, 24),
+        outcome: gaSafe(record.outcome || 'unknown', 24),
+        state_impact: gaSafe(choiceImpact.impactClass, 24),
+        choice_depth: S.choicesMade.length + 1,
+      }));
+      S.choicesMade.push({
+        from: S.currentPageId,
+        to: record.toPageId,
+        label: record.label || '',
+        outcome: record.outcome || null,
+        effects: record.effects,
+      });
+      S.storyState = applyChoiceEffects(S.storyState, record.effects, S.story);
+      try {
+        await new Promise(resolve => setTimeout(resolve, CHOICE_FEEDBACK_HOLD_MS));
+        renderPage(record.toPageId);
+      } finally {
+        S.choiceInFlight = false;
+      }
+    }
+
+    function determineEnding(pageId) {
+      return storyStateAssessment(syncStoryState(), pageId || S.currentPageId).type;
+    }
+
+    function endingCopyFor(type) {
+      const genreCopy = ENDING_COPY[S.genre] || ENDING_COPY.default;
+      return genreCopy[type] || ENDING_COPY.default[type] || ENDING_COPY.default.good;
+    }
+
+    function endingStatusForGenre(genre, type) {
+      const statusType = (type === 'neutral' || type === 'bad') ? type : 'good';
+      const themeKey = GENRE_CFG[genre]?.key || 'default';
+      const themeStatus = ENDING_STATUS[themeKey] || ENDING_STATUS.default;
+      return themeStatus[statusType] || ENDING_STATUS.default[statusType] || ENDING_STATUS.default.good;
+    }
+
+    function endingStatusFor(type) {
+      return endingStatusForGenre(S.genre, type);
+    }
+
+    function endingRecapLabel(type) {
+      const alignment = endingStatusFor(type)?.alignment;
+      return alignment ? String(alignment).toLowerCase() : type;
+    }
+
+    function formatRuntime(ms) {
+      const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+      const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+      const ss = String(totalSec % 60).padStart(2, '0');
+      return `${mm}:${ss}`;
+    }
+
+    function routeMomentumScore(choices = S.choicesMade, story = S.story) {
+      let priorPageId = 'page_1';
+      let priorState = createInitialStoryState(story);
+      let bonus = 0;
+
+      (choices || []).forEach(rawChoice => {
+        const record = resolveChoiceRecord(rawChoice, priorPageId, story);
+        const components = choiceScoreComponents(record, {
+          beforeState: priorState,
+          beforePageId: priorPageId,
+          story,
+        });
+        bonus += components.momentumStep;
+        priorState = components.afterState;
+        if (record.toPageId) priorPageId = record.toPageId;
+      });
+
+      return Math.round(bonus * 10) / 10;
+    }
+
+    function storyStateAssessment(state = S.storyState, pageId = S.currentPageId, story = S.story, choices = S.choicesMade) {
+      const core = storyStateCoreAssessment(state, pageId, story);
+      const routeMomentum = routeMomentumScore(choices, story);
+      const score = Math.max(8, Math.min(100, core.rawScore + routeMomentum));
       const type = score >= 68 ? 'good' : score <= 40 ? 'bad' : 'neutral';
 
-      return { score, type, metrics, snapshot };
+      return { score, type, routeMomentum, ...core };
+    }
+
+    function formatScoreImpact(value) {
+      const numeric = Math.round((Number(value) || 0) * 10) / 10;
+      const normalized = Math.abs(numeric) < 0.05 ? 0 : numeric;
+      const absText = Number.isInteger(Math.abs(normalized))
+        ? String(Math.abs(normalized))
+        : Math.abs(normalized).toFixed(1).replace(/\.0$/, '');
+      if (normalized > 0) return `+${absText}`;
+      if (normalized < 0) return `-${absText}`;
+      return `0`;
+    }
+
+    function endingStateDetail(metric) {
+      const rawValueLabel = formatStateValue(metric?.def, metric?.value);
+      if (!metric?.def) return `Current: ${rawValueLabel}`;
+
+      if (metric.def.kind === 'flag') {
+        return metric.value
+          ? `Current: ${rawValueLabel} • Present at the finale.`
+          : `Current: ${rawValueLabel} • Missing at the finale.`;
+      }
+
+      if (metric.def.direction === 'lower') {
+        if (metric.tone === 'good') return `Current: ${rawValueLabel} • Stayed under control.`;
+        if (metric.tone === 'bad') return `Current: ${rawValueLabel} • Ran too high.`;
+        return `Current: ${rawValueLabel} • Sat in the middle.`;
+      }
+
+      if (metric.tone === 'good') return `Current: ${rawValueLabel} • Finished as a strength.`;
+      if (metric.tone === 'bad') return `Current: ${rawValueLabel} • Never built enough.`;
+      return `Current: ${rawValueLabel} • Sat in the middle.`;
     }
 
     function endingRank(score) {
@@ -6134,18 +6632,12 @@
         labelEl.textContent = metric.label;
 
         const valueEl = document.createElement('span');
-        valueEl.className = 'ending-state-item-value';
-        valueEl.textContent = formatStateValue(metric.def, metric.value);
+        valueEl.className = `ending-state-item-value ${metric.tone}`;
+        valueEl.textContent = formatScoreImpact(metric.scoreImpact);
 
         const detailEl = document.createElement('p');
         detailEl.className = 'ending-state-item-detail';
-        if (metric.def.kind === 'flag') {
-          detailEl.textContent = metric.value
-            ? 'This stayed with you into the final scene.'
-            : 'This never made it to the final scene.';
-        } else {
-          detailEl.textContent = `${metric.def.direction === 'lower' ? 'Kept under control' : 'Built across the run'} • ${metric.def.group || 'tracked state'}`;
-        }
+        detailEl.textContent = endingStateDetail(metric);
 
         item.appendChild(labelEl);
         item.appendChild(valueEl);
@@ -6157,10 +6649,18 @@
     function endingTimelineEntries() {
       const entries = [];
       let priorPageId = 'page_1';
+      let priorState = createInitialStoryState(S.story);
+      let priorChoices = [];
 
       (S.choicesMade || []).forEach((rawChoice, idx) => {
         const record = resolveChoiceRecord(rawChoice, priorPageId);
         if (!record.toPageId) return;
+        const impact = choiceScoreImpact(record, {
+          beforeState: priorState,
+          beforeChoices: priorChoices,
+          beforePageId: priorPageId,
+          story: S.story,
+        });
 
         const decision = record.label || `Advanced to ${resumeCheckpointLabel(record.toPageId)}`;
         const fromBeat = Number(gaPageMeta(record.fromPageId).beat) || (idx + 1);
@@ -6169,10 +6669,12 @@
         entries.push({
           beat,
           decision,
-          impactClass: stateImpactClass(record.effects, record.outcome),
-          impactText: formatChoiceEffectsSummary(record.effects, { maxItems: 3 }),
+          impactClass: impact.impactClass,
+          impactText: formatChoiceImpactSummary(record, impact, { maxItems: 3 }),
         });
 
+        priorState = impact.afterState;
+        priorChoices = impact.afterChoices;
         priorPageId = record.toPageId;
       });
 
@@ -6257,6 +6759,8 @@
     function endingShareText(type, report, copy) {
       const pages = S.story?.pages || {};
       const pageIds = [];
+      let priorState = createInitialStoryState(S.story);
+      let priorChoices = [];
       const pushId = id => {
         if (!id || !pages[id]) return;
         if (pageIds[pageIds.length - 1] === id) return;
@@ -6295,8 +6799,16 @@
         const nextPageId = pageIds[idx + 1];
         if (nextPageId && Array.isArray(page.choices)) {
           const record = resolveChoiceRecord({ from: pageId, to: nextPageId });
+          const impact = choiceScoreImpact(record, {
+            beforeState: priorState,
+            beforeChoices: priorChoices,
+            beforePageId: pageId,
+            story: S.story,
+          });
           if (record.label) lines.push(`\nChoice: ${record.label}`);
-          lines.push(`Impact: ${formatChoiceEffectsSummary(record.effects, { maxItems: 3 })}`);
+          lines.push(`Impact: ${formatChoiceImpactSummary(record, impact, { maxItems: 3 })}`);
+          priorState = impact.afterState;
+          priorChoices = impact.afterChoices;
         }
 
         if (idx < pageIds.length - 1) lines.push('');
@@ -6370,18 +6882,28 @@
     function storyCircleBeatMeta() {
       const metaByBeat = Array.from({ length: BEAT_NAMES.length }, () => null);
       let priorPageId = 'page_1';
+      let priorState = createInitialStoryState(S.story);
+      let priorChoices = [];
       (S.choicesMade || []).forEach((rawChoice, idx) => {
         const record = resolveChoiceRecord(rawChoice, priorPageId);
         if (!record.toPageId) return;
+        const impact = choiceScoreImpact(record, {
+          beforeState: priorState,
+          beforeChoices: priorChoices,
+          beforePageId: priorPageId,
+          story: S.story,
+        });
         const choiceText = record.label || normalizeStoryText(`Advanced to ${resumeCheckpointLabel(record.toPageId)}`, 180);
-        const impactText = formatChoiceEffectsSummary(record.effects, { maxItems: 2 });
-        const impactClass = stateImpactClass(record.effects, record.outcome);
+        const impactText = formatChoiceImpactSummary(record, impact, { maxItems: 2 });
+        const impactClass = impact.impactClass;
         const outcomeClass = (impactClass === 'good' || impactClass === 'neutral' || impactClass === 'bad')
           ? `outcome-${impactClass}`
           : 'outcome-unknown';
         const beatNumber = Number(gaPageMeta(record.fromPageId).beat) || (idx + 1);
         const beatIndex = Math.max(0, Math.min(BEAT_NAMES.length - 1, beatNumber - 1));
         metaByBeat[beatIndex] = { outcomeClass, choiceText: `${choiceText} • ${impactText}` };
+        priorState = impact.afterState;
+        priorChoices = impact.afterChoices;
         priorPageId = record.toPageId;
       });
       return metaByBeat;
@@ -6694,10 +7216,15 @@
       if (choices) choices.textContent = report.decisions;
       if (runtime) runtime.textContent = report.runtime;
       if (alignment) alignment.textContent = report.alignment;
-      if (score) score.textContent = String(report.score).padStart(3, '0');
+      if (score) {
+        score.className = 'ending-meter-score';
+        score.classList.add(resolvedType);
+        score.textContent = String(report.score).padStart(3, '0');
+      }
       if (logline) logline.textContent = report.recap;
       renderEndingState(assessment);
       renderEndingTimeline();
+      recordCurrentRouteArchive(assessment, resolvedType);
 
       if (resolvedType === 'neutral') {
         sigil.textContent = '◎';
@@ -6721,6 +7248,9 @@
       syncEndingBackdrop(S.currentPageId);
       resetEndingShareButton();
       showScreen('ending');
+      if (endingScreen) endingScreen.scrollTop = 0;
+      window.scrollTo(0, 0);
+      renderEndingArchive();
 
       if (endingScreen) {
         void endingScreen.offsetWidth;
