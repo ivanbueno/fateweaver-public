@@ -2996,7 +2996,7 @@
     const STORY_IMAGE_KEY_PREFIX = 'visualnovel_story_images_';
     const PROGRESS_KEY_PREFIX = 'visualnovel_progress_';
     const LEGACY_STORY_ARCHIVE_PREFIX = 'visualnovel_completed_story_';
-    const ROUTE_ARCHIVE_KEY = 'visualnovel_route_archive_v1';
+    const ROUTE_ARCHIVE_KEY = 'visualnovel_route_archive_v2';
     const SHARED_STORY_ID_PREFIX = 'shared_story_';
     const SHARED_LOOKUP_MODE_VALUES = new Set(['latest', 'random', 'all']);
     const MAX_STORED_IMAGE_DATA_CHARS = 25_000_000;
@@ -3092,50 +3092,82 @@
     }
 
     function emptyRouteArchive() {
-      return { version: 1, genres: {} };
+      return { version: 2, stories: {} };
+    }
+
+    function normalizeRouteArchiveStoryBucket(rawBucket, fallbackStoryId = '') {
+      if (!rawBucket || typeof rawBucket !== 'object') return null;
+      const storyId = normalizeStoryText(rawBucket.storyId || fallbackStoryId, 160);
+      if (!storyId) return null;
+      return {
+        storyId,
+        title: normalizeStoryText(rawBucket.title, 120),
+        tagline: normalizeStoryText(rawBucket.tagline, 220),
+        genre: normalizeStoryText(rawBucket.genre, 80),
+        era: normalizeStoryText(rawBucket.era, 80),
+        archetype: normalizeStoryText(rawBucket.archetype, 80),
+        totalRuns: Number(rawBucket.totalRuns) || 0,
+        lastPlayedAt: Number(rawBucket.lastPlayedAt) || 0,
+        seenEndings: (rawBucket.seenEndings && typeof rawBucket.seenEndings === 'object') ? rawBucket.seenEndings : {},
+        routes: (rawBucket.routes && typeof rawBucket.routes === 'object') ? rawBucket.routes : {},
+      };
     }
 
     function loadRouteArchive() {
       const stored = lsGet(ROUTE_ARCHIVE_KEY);
       if (!stored || typeof stored !== 'object') return emptyRouteArchive();
 
-      const genres = {};
-      Object.entries(stored.genres || {}).forEach(([rawKey, rawBucket]) => {
-        if (!rawBucket || typeof rawBucket !== 'object') return;
-        const genre = normalizeStoryText(rawBucket.genre || rawKey, 80) || rawKey;
-        const key = slug(genre) || slug(rawKey);
-        if (!key) return;
-        genres[key] = {
-          genre,
-          totalRuns: Number(rawBucket.totalRuns) || 0,
-          lastPlayedAt: Number(rawBucket.lastPlayedAt) || 0,
-          seenEndings: (rawBucket.seenEndings && typeof rawBucket.seenEndings === 'object') ? rawBucket.seenEndings : {},
-          routes: (rawBucket.routes && typeof rawBucket.routes === 'object') ? rawBucket.routes : {},
-        };
+      const stories = {};
+      Object.entries(stored.stories || {}).forEach(([rawStoryId, rawBucket]) => {
+        const bucket = normalizeRouteArchiveStoryBucket(rawBucket, rawStoryId);
+        if (!bucket) return;
+        stories[bucket.storyId] = bucket;
       });
 
-      return { version: 1, genres };
+      return { version: 2, stories };
     }
 
     function saveRouteArchive(archive) {
       return lsSet(ROUTE_ARCHIVE_KEY, archive && typeof archive === 'object' ? archive : emptyRouteArchive());
     }
 
-    function ensureRouteArchiveGenreBucket(archive, genre) {
+    function ensureRouteArchiveStoryBucket(archive, storyId, meta = {}) {
       if (!archive || typeof archive !== 'object') return null;
-      const key = slug(genre);
+      const key = normalizeStoryText(storyId, 160);
       if (!key) return null;
-      if (!archive.genres || typeof archive.genres !== 'object') archive.genres = {};
-      if (!archive.genres[key] || typeof archive.genres[key] !== 'object') {
-        archive.genres[key] = { genre, totalRuns: 0, lastPlayedAt: 0, seenEndings: {}, routes: {} };
-      }
-      const bucket = archive.genres[key];
-      bucket.genre = normalizeStoryText(bucket.genre || genre, 80) || genre;
+      if (!archive.stories || typeof archive.stories !== 'object') archive.stories = {};
+      const bucket = normalizeRouteArchiveStoryBucket(archive.stories[key], key) || {
+        storyId: key,
+        title: '',
+        tagline: '',
+        genre: '',
+        era: '',
+        archetype: '',
+        totalRuns: 0,
+        lastPlayedAt: 0,
+        seenEndings: {},
+        routes: {},
+      };
+      bucket.title = normalizeStoryText(meta.title || bucket.title, 120);
+      bucket.tagline = normalizeStoryText(meta.tagline || bucket.tagline, 220);
+      bucket.genre = normalizeStoryText(meta.genre || bucket.genre, 80);
+      bucket.era = normalizeStoryText(meta.era || bucket.era, 80);
+      bucket.archetype = normalizeStoryText(meta.archetype || bucket.archetype, 80);
       if (!bucket.seenEndings || typeof bucket.seenEndings !== 'object') bucket.seenEndings = {};
       if (!bucket.routes || typeof bucket.routes !== 'object') bucket.routes = {};
       bucket.totalRuns = Number(bucket.totalRuns) || 0;
       bucket.lastPlayedAt = Number(bucket.lastPlayedAt) || 0;
+      archive.stories[key] = bucket;
       return bucket;
+    }
+
+    function deleteRouteArchiveStory(storyId) {
+      const key = normalizeStoryText(storyId, 160);
+      if (!key) return false;
+      const archive = loadRouteArchive();
+      if (!archive.stories || !Object.prototype.hasOwnProperty.call(archive.stories, key)) return false;
+      delete archive.stories[key];
+      return saveRouteArchive(archive);
     }
 
     function removeLegacyStoredStoryImagesLocal(imageStorageKey) {
@@ -3809,6 +3841,7 @@
       keys.forEach(key => {
         try { localStorage.removeItem(key); } catch {}
       });
+      try { localStorage.removeItem(ROUTE_ARCHIVE_KEY); } catch {}
       await clearAllStoredStoryImages();
 
       renderSetupHistory();
@@ -3820,6 +3853,7 @@
     }
 
     async function deleteSavedStoryData(storyStorageKey, progressStorageKey, imageStorageKey) {
+      const storyId = storyStorageIdFromKey(storyStorageKey);
       if (storyStorageKey) {
         try { localStorage.removeItem(storyStorageKey); } catch {}
       }
@@ -3829,6 +3863,7 @@
       if (imageStorageKey) {
         await deleteStoredStoryImages(imageStorageKey);
       }
+      if (storyId) deleteRouteArchiveStory(storyId);
     }
 
     async function replaySavedStory(entry) {
@@ -4034,6 +4069,7 @@
 
     function currentRouteArchivePayload(assessment, endingType) {
       if (!S.story?.pages || !S.genre || !S.currentPageId) return null;
+      const storyId = ensureCurrentStoryStorageId();
       const playedAt = Date.now();
       const finalPageId = S.currentPageId;
       const slot = endingSlotMeta(finalPageId, S.genre);
@@ -4041,6 +4077,7 @@
       const title = normalizeStoryText(S.story?.title, 120) || 'Untitled Chronicle';
       const tagline = normalizeStoryText(S.story?.tagline, 220) || '';
       return {
+        storyId,
         signature: pathIds.join('>'),
         finalPageId,
         endingType: endingType || slot.outcome,
@@ -4066,13 +4103,14 @@
       if (!payload) return null;
 
       const archive = loadRouteArchive();
-      const bucket = ensureRouteArchiveGenreBucket(archive, payload.genre);
+      const bucket = ensureRouteArchiveStoryBucket(archive, payload.storyId, payload);
       if (!bucket) return null;
       const now = payload.playedAt;
 
       const existingRoute = bucket.routes[payload.signature] || {};
       bucket.routes[payload.signature] = {
         ...existingRoute,
+        storyId: payload.storyId,
         signature: payload.signature,
         finalPageId: payload.finalPageId,
         endingType: payload.endingType,
@@ -4099,6 +4137,7 @@
       const existingEnding = bucket.seenEndings[payload.finalPageId] || {};
       bucket.seenEndings[payload.finalPageId] = {
         ...existingEnding,
+        storyId: payload.storyId,
         pageId: payload.finalPageId,
         endingType: payload.endingType,
         outcome: payload.slot.outcome,
@@ -4129,11 +4168,12 @@
       return (Number(b?.lastPlayedAt) || 0) - (Number(a?.lastPlayedAt) || 0);
     }
 
-    function genreRouteArchiveSummary(genre) {
-      const safeGenre = normalizeStoryText(genre, 80) || '';
+    function storyRouteArchiveSummary(storyId = S.storyStorageId) {
+      const safeStoryId = normalizeStoryText(storyId, 160) || '';
       const archive = loadRouteArchive();
-      const bucket = safeGenre ? archive.genres?.[slug(safeGenre)] : null;
+      const bucket = safeStoryId ? normalizeRouteArchiveStoryBucket(archive.stories?.[safeStoryId], safeStoryId) : null;
       const routes = Object.values(bucket?.routes || {}).sort(routeArchiveSort);
+      const safeGenre = normalizeStoryText(bucket?.genre || S.genre, 80) || '';
       const slots = FINAL_ENDING_PAGE_IDS.map(pageId => {
         const slot = endingSlotMeta(pageId, safeGenre);
         const seen = bucket?.seenEndings?.[pageId] || null;
@@ -4150,6 +4190,9 @@
       });
 
       return {
+        storyId: safeStoryId,
+        title: normalizeStoryText(bucket?.title, 120),
+        tagline: normalizeStoryText(bucket?.tagline, 220),
         genre: safeGenre,
         seenCount: slots.filter(slot => slot.seen).length,
         totalEndings: FINAL_ENDING_PAGE_IDS.length,
@@ -4179,16 +4222,20 @@
       const galleryEl = document.getElementById('ending-gallery');
       if (!noteEl || !metaEl || !galleryEl) return;
 
-      const summary = genreRouteArchiveSummary(S.genre);
+      const summary = storyRouteArchiveSummary(S.storyStorageId);
+      const archiveScope = summary.storyId ? 'this story' : (summary.genre || 'this genre');
 
-      noteEl.textContent = `Seen ${summary.seenCount} of ${summary.totalEndings} endings in ${S.genre || 'this genre'}`;
-      metaEl.textContent = `${summary.totalRuns || 0} cleared route${summary.totalRuns === 1 ? '' : 's'} logged`;
+      noteEl.textContent = `Seen ${summary.seenCount} of ${summary.totalEndings} endings for ${archiveScope}`;
+      metaEl.textContent = `${summary.totalRuns || 0} cleared route${summary.totalRuns === 1 ? '' : 's'} logged${summary.storyId ? ' for this story' : ''}`;
 
       galleryEl.innerHTML = '';
+      galleryEl.dataset.storyId = summary.storyId || '';
       const galleryFrag = document.createDocumentFragment();
       summary.slots.forEach(slot => {
         const card = document.createElement('article');
         card.className = `ending-gallery-card ${slot.outcome}${slot.seen ? ' is-seen' : ' is-hidden'}${slot.pageId === S.currentPageId ? ' is-current' : ''}`;
+        card.dataset.storyId = summary.storyId || '';
+        card.dataset.pageId = slot.pageId;
 
         const head = document.createElement('div');
         head.className = 'ending-gallery-card-head';
