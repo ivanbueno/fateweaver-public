@@ -7899,6 +7899,9 @@
 
     function goHome() {
       const fromScreen = A.lastScreen || 'unknown';
+      const homeUrl = new URL(window.location.href);
+      homeUrl.search = '';
+      window.history.replaceState({}, '', `${homeUrl.pathname}${homeUrl.hash}`);
       showScreen('setup');
       const setupScreen = document.getElementById('screen-setup');
       if (setupScreen) setupScreen.scrollTop = 0;
