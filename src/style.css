@@ -4161,10 +4161,20 @@ body {
   justify-content: center;
   width: 100%;
 }
-#ending-share-btn.copied {
+#ending-share-btn.copied,
+#ending-copy-btn.copied {
   border-color: var(--ending-accent);
   color: var(--ending-accent);
   box-shadow: 0 0 18px var(--ending-accent-soft);
+}
+#ending-share-btn:disabled {
+  opacity: 0.72;
+}
+#ending-share-btn.is-publishing {
+  cursor: wait;
+}
+#ending-share-btn.already-shared {
+  cursor: pointer;
 }
 
 #screen-ending .btn-secondary {

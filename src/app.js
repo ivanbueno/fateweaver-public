@@ -731,6 +731,12 @@
       storyRunStartedAt: 0,
       lastEndingType: 'good',
       choiceInFlight: false,
+      storyOrigin:   'local',
+      sharedShareId: '',
+      publishedShareId: '',
+      sharedLookupMode: 'latest',
+      sharedImagePageIds: new Set(),
+      sharePublishInFlight: false,
     };
 
     // ─── ANALYTICS (Google Analytics 4) ───────────────────────
@@ -2985,11 +2991,14 @@
     ];
     const pending = new Set(); // session-scoped in-flight image request keys: `${storySessionId}:${pageId}`
     let endingShareResetTid = null;
+    let endingRecapResetTid = null;
     const STORY_KEY_PREFIX = 'visualnovel_story_';
     const STORY_IMAGE_KEY_PREFIX = 'visualnovel_story_images_';
     const PROGRESS_KEY_PREFIX = 'visualnovel_progress_';
     const LEGACY_STORY_ARCHIVE_PREFIX = 'visualnovel_completed_story_';
     const ROUTE_ARCHIVE_KEY = 'visualnovel_route_archive_v1';
+    const SHARED_STORY_ID_PREFIX = 'shared_story_';
+    const SHARED_LOOKUP_MODE_VALUES = new Set(['latest', 'random', 'all']);
     const MAX_STORED_IMAGE_DATA_CHARS = 25_000_000;
     const MAX_STORED_SVG_DATA_CHARS = 2_000_000;
     const STORY_IMAGE_DB_NAME = 'visualnovel_story_image_cache';
@@ -3035,12 +3044,41 @@
     function progressKeyForId(storyId) {
       return storyId ? `${PROGRESS_KEY_PREFIX}${storyId}` : '';
     }
+    function sharedStoryStorageIdForShareId(shareId) {
+      const safe = normalizeStoryText(shareId, 80).toLowerCase();
+      return safe ? `${SHARED_STORY_ID_PREFIX}${safe}` : '';
+    }
+    function sharedShareIdFromStoryId(storyId) {
+      if (!storyId || !storyId.startsWith(SHARED_STORY_ID_PREFIX)) return '';
+      return storyId.slice(SHARED_STORY_ID_PREFIX.length);
+    }
     function storyKey()      { return storyKeyForId(S.storyStorageId); }
     function storyImageKey() { return storyImageKeyForId(S.storyStorageId); }
     function progressKey()   { return progressKeyForId(S.storyStorageId); }
     function ensureCurrentStoryStorageId() {
       if (!S.storyStorageId) S.storyStorageId = createStoryStorageId();
       return S.storyStorageId;
+    }
+    function normalizeSharedLookupMode(mode) {
+      const value = String(mode || '').trim().toLowerCase();
+      return SHARED_LOOKUP_MODE_VALUES.has(value) ? value : 'latest';
+    }
+    function setLocalStoryContext(publishedShareId = '') {
+      S.storyOrigin = 'local';
+      S.sharedShareId = '';
+      S.publishedShareId = normalizeStoryText(publishedShareId, 80).toLowerCase();
+      S.sharedLookupMode = 'latest';
+      S.sharedImagePageIds = new Set();
+    }
+    function setSharedStoryContext(shareId, mode = 'latest', imagePageIds = []) {
+      S.storyOrigin = 'shared';
+      S.sharedShareId = normalizeStoryText(shareId, 80).toLowerCase();
+      S.publishedShareId = S.sharedShareId;
+      S.sharedLookupMode = normalizeSharedLookupMode(mode);
+      S.sharedImagePageIds = new Set(
+        (Array.isArray(imagePageIds) ? imagePageIds : [])
+          .filter(pageId => typeof pageId === 'string' && /^page_[a-z0-9_]+$/i.test(pageId))
+      );
     }
 
     function lsGet(k)   { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
@@ -3437,8 +3475,20 @@
       const front = storyFrontMatterForStorage(storyObj);
       const existing = loadStoredStory(storyId);
       const generatedAt = Number(existing?.meta?.generatedAt) || Date.now();
+      const source = S.storyOrigin === 'shared' ? 'shared' : 'local';
+      const publishedShareId = currentPublishedShareId();
       lsSet(key, {
-        meta: { storyId, genre: S.genre, era: S.era, archetype: S.archetype, generatedAt },
+        meta: {
+          storyId,
+          genre: S.genre,
+          era: S.era,
+          archetype: S.archetype,
+          generatedAt,
+          source,
+          sharedShareId: source === 'shared' ? S.sharedShareId : '',
+          publishedShareId,
+          sharedLookupMode: source === 'shared' ? S.sharedLookupMode : '',
+        },
         title: front.title,
         tagline: front.tagline,
         state: front.state,
@@ -3454,6 +3504,29 @@
       return lsGet(storyKeyForId(storyId));
     }
 
+    function currentPublishedShareId() {
+      const candidate = S.storyOrigin === 'shared' ? S.sharedShareId : S.publishedShareId;
+      return normalizeStoryText(candidate, 80).toLowerCase();
+    }
+
+    function isCurrentStoryAlreadyShared() {
+      return Boolean(currentPublishedShareId());
+    }
+
+    function persistCurrentStoryMeta(partialMeta = {}) {
+      const storyId = ensureCurrentStoryStorageId();
+      const stored = loadStoredStory(storyId);
+      if (!stored || typeof stored !== 'object') return false;
+      return lsSet(storyKeyForId(storyId), {
+        ...stored,
+        meta: {
+          ...(stored.meta && typeof stored.meta === 'object' ? stored.meta : {}),
+          ...partialMeta,
+          storyId,
+        },
+      });
+    }
+
     function removeLegacyCompletedStoriesForSelection(genre, era, archetype) {
       const target = selectionStorageId(genre, era, archetype);
       try {
@@ -3462,6 +3535,7 @@
           if (!key || !key.startsWith(LEGACY_STORY_ARCHIVE_PREFIX)) continue;
           const stored = lsGet(key);
           const meta = stored?.meta || {};
+          if (meta.source === 'shared') continue;
           const candidate = selectionStorageId(meta.genre, meta.era, meta.archetype);
           if (candidate !== target) continue;
           localStorage.removeItem(key);
@@ -3478,7 +3552,9 @@
       const active = loadStoredStory(storyId);
       const generatedAt = Number(active?.meta?.generatedAt) || now;
       const front = storyFrontMatterForStorage(S.story);
-      removeLegacyCompletedStoriesForSelection(S.genre, S.era, S.archetype);
+      const source = S.storyOrigin === 'shared' ? 'shared' : 'local';
+      const publishedShareId = currentPublishedShareId();
+      if (source !== 'shared') removeLegacyCompletedStoriesForSelection(S.genre, S.era, S.archetype);
       try { localStorage.removeItem(key); } catch {}
 
       lsSet(key, {
@@ -3490,6 +3566,10 @@
           generatedAt,
           completedAt: now,
           endingType: gaSafe(endingType || 'good', 16),
+          source,
+          sharedShareId: source === 'shared' ? S.sharedShareId : '',
+          publishedShareId,
+          sharedLookupMode: source === 'shared' ? S.sharedLookupMode : '',
         },
         title: front.title,
         tagline: front.tagline,
@@ -3610,6 +3690,7 @@
           const era = String(meta.era || 'Unknown Era');
           const archetype = String(meta.archetype || 'Unknown Archetype');
           const storyId = String(meta.storyId || storyStorageIdFromKey(key) || '').trim();
+          const source = meta.source === 'shared' ? 'shared' : 'local';
           if (!storyId) continue;
           const isCompleted = Number(meta.completedAt) > 0;
           stories.push({
@@ -3622,6 +3703,10 @@
             genre,
             era,
             archetype,
+            source,
+            sharedShareId: normalizeStoryText(meta.sharedShareId || sharedShareIdFromStoryId(storyId), 80).toLowerCase(),
+            publishedShareId: normalizeStoryText(meta.publishedShareId || '', 80).toLowerCase(),
+            sharedLookupMode: normalizeStoryText(meta.sharedLookupMode || '', 16).toLowerCase(),
             generatedAt: Number(meta.generatedAt) || 0,
             completedAt: Number(meta.completedAt) || 0,
           });
@@ -3636,8 +3721,14 @@
     function latestSavedStoryForSelection(genre, era, archetype) {
       const target = selectionStorageId(genre, era, archetype);
       return savedStoriesFromStorage().find(entry => (
+        entry.source !== 'shared' &&
         selectionStorageId(entry.genre, entry.era, entry.archetype) === target
       )) || null;
+    }
+    function savedStoryForSharedId(shareId) {
+      const target = normalizeStoryText(shareId, 80).toLowerCase();
+      if (!target) return null;
+      return savedStoriesFromStorage().find(entry => entry.sharedShareId === target) || null;
     }
 
     function savedStoryStorageKeys() {
@@ -3789,6 +3880,11 @@
       S.genre = entry.genre;
       S.era = entry.era;
       S.archetype = entry.archetype;
+      if (entry.source === 'shared' && entry.sharedShareId) {
+        setSharedStoryContext(entry.sharedShareId, entry.sharedLookupMode || 'latest');
+      } else {
+        setLocalStoryContext(entry.publishedShareId || '');
+      }
       S.storyStorageId = entry.storyId;
       S.story = storyFromStoredRecord(entry.story);
       S.currentPageId = targetPage;
@@ -4167,6 +4263,134 @@
       } finally {
         clearTimeout(tid);
       }
+    }
+
+    function getStartupStoryRequest() {
+      const params = new URLSearchParams(window.location.search);
+      const shareId = normalizeStoryText(params.get('share') || '', 80).toLowerCase();
+      if (shareId) return { type: 'share', shareId };
+
+      const genre = normalizeStoryText(params.get('genre') || '', 96);
+      const era = normalizeStoryText(params.get('era') || '', 96);
+      const archetype = normalizeStoryText(params.get('archetype') || '', 96);
+      if (genre && era && archetype) {
+        return {
+          type: 'selection',
+          genre,
+          era,
+          archetype,
+          mode: normalizeSharedLookupMode(params.get('mode')),
+        };
+      }
+      return null;
+    }
+
+    async function openSharedStoryPayload(payload, options = {}) {
+      const shareId = normalizeStoryText(options.shareId || payload?.shareId || '', 80).toLowerCase();
+      if (!shareId || !payload?.story?.pages) throw new Error('Shared story payload is incomplete.');
+
+      const sharedStoryId = sharedStoryStorageIdForShareId(shareId);
+      const existingEntry = savedStoryForSharedId(shareId);
+      let targetPage = 'page_1';
+      let targetChoices = [];
+      let targetStartedAt = Date.now();
+      let clearProgress = false;
+
+      if (existingEntry?.storyId) {
+        const prog = loadProgress(existingEntry.storyId);
+        const decision = await promptResumeDecision(payload.story, prog);
+        if (decision === RESUME_DECISION.RESUME) {
+          const candidatePage = typeof prog?.currentPage === 'string' ? prog.currentPage : 'page_1';
+          targetPage = Object.prototype.hasOwnProperty.call(payload.story.pages || {}, candidatePage) ? candidatePage : 'page_1';
+          targetChoices = Array.isArray(prog?.choicesMade) ? prog.choicesMade : [];
+          targetStartedAt = Number(prog?.startedAt) || Date.now();
+        } else if (decision === RESUME_DECISION.RESTART) {
+          clearProgress = true;
+        } else if (decision === RESUME_DECISION.NEW) {
+          clearProgress = true;
+        } else if (decision === RESUME_DECISION.DELETE) {
+          await deleteSavedStoryData(existingEntry.key, existingEntry.progressKey, existingEntry.imageKey);
+        } else if (decision === RESUME_DECISION.CANCEL) {
+          return false;
+        }
+      }
+
+      S.genre = payload.selection?.genre || '';
+      S.era = payload.selection?.era || '';
+      S.archetype = payload.selection?.archetype || '';
+      S.storyStorageId = sharedStoryId;
+      S.story = {
+        ...payload.story,
+        title: normalizeStoryText(payload.story?.title, 120),
+        tagline: normalizeStoryText(payload.story?.tagline, 220),
+      };
+      resetImageState();
+      setSharedStoryContext(shareId, options.mode || 'latest', payload.meta?.imagePageIds || []);
+      S.currentPageId = targetPage;
+      S.choicesMade = targetChoices;
+      S.storyState = buildStoryStateFromChoices(targetChoices, S.story);
+      await hydrateStoredStoryImages(S.story, S.storySessionId, storyImageKeyForId(sharedStoryId));
+      S.storyRunStartedAt = targetStartedAt;
+
+      saveStory(S.story);
+      if (clearProgress) {
+        try { localStorage.removeItem(progressKeyForId(sharedStoryId)); } catch {}
+        S.currentPageId = 'page_1';
+        S.choicesMade = [];
+        S.storyState = createInitialStoryState(S.story);
+        S.storyRunStartedAt = Date.now();
+      }
+
+      renderSetupHistory();
+      applyTheme(S.genre);
+      showScreen('game');
+      renderPage(S.currentPageId);
+      if (!MUS.ready && !MUS.loading) startBackgroundMusic();
+      trackEvent('shared_story_loaded', gaStoryParams({
+        share_id: gaSafe(shareId, 32),
+        lookup_mode: gaSafe(options.mode || 'latest', 16),
+        resumed: Number(S.choicesMade.length > 0),
+      }));
+      return true;
+    }
+
+    async function bootstrapStartupStory(request = getStartupStoryRequest()) {
+      if (!request) return false;
+      if (!S.lambdaUrl) {
+        stopTimer();
+        showLoadError('Lambda URL not configured. Shared story links require a working backend.');
+        return true;
+      }
+
+      if (request.type === 'selection' && request.mode === 'all') {
+        stopTimer();
+        showLoadError('Selection mode "all" is API-only. Use latest or random in the browser.');
+        return true;
+      }
+
+      try {
+        const result = request.type === 'share'
+          ? await callLambda({ action: 'loadSharedStory', shareId: request.shareId }, 120000)
+          : await callLambda({
+            action: 'loadSharedStoriesBySelection',
+            genre: request.genre,
+            era: request.era,
+            archetype: request.archetype,
+            mode: request.mode,
+          }, 120000);
+        if (!result?.success) throw new Error(result?.error || 'Shared story lookup failed.');
+        stopTimer();
+        await completeLoading();
+        const opened = await openSharedStoryPayload(result, {
+          shareId: result.shareId || request.shareId,
+          mode: request.mode || 'latest',
+        });
+        if (!opened) showScreen('setup');
+      } catch (err) {
+        stopTimer();
+        showLoadError(err?.message || 'Shared story lookup failed.');
+      }
+      return true;
     }
 
     /* ─── SCREEN SWITCHING ─────────────────────────────────── */
@@ -5328,6 +5552,7 @@
           resume_decision: resumeDecision,
         }));
         if (resumeDecision === RESUME_DECISION.RESUME) {
+          setLocalStoryContext();
           S.storyStorageId = existingEntry.storyId;
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = prog?.currentPage || 'page_1';
@@ -5345,6 +5570,7 @@
           }));
           return;
         } else if (resumeDecision === RESUME_DECISION.RESTART) {
+          setLocalStoryContext();
           S.storyStorageId = existingEntry.storyId;
           S.story = storyFromStoredRecord(existing);
           S.currentPageId = 'page_1';
@@ -5382,6 +5608,7 @@
         }
       }
       S.storyStorageId = '';
+      setLocalStoryContext();
 
       showScreen('loading');
       resetLoading();
@@ -5400,6 +5627,7 @@
           title: normalizeStoryText(result.story?.title, 120),
           tagline: normalizeStoryText(result.story?.tagline, 220),
         };
+        setLocalStoryContext();
         S.currentPageId = 'page_1';
         S.choicesMade   = [];
         S.storyState = createInitialStoryState(S.story);
@@ -6867,15 +7095,183 @@
       bgSvg.innerHTML = '';
     }
 
-    function resetEndingShareButton() {
-      const btn = document.getElementById('ending-share-btn');
-      if (!btn) return;
-      if (endingShareResetTid) {
+    function clearEndingButtonReset(which) {
+      if (which === 'share' && endingShareResetTid) {
         clearTimeout(endingShareResetTid);
         endingShareResetTid = null;
       }
-      btn.textContent = '⧉ Copy Story';
-      btn.classList.remove('copied');
+      if (which === 'recap' && endingRecapResetTid) {
+        clearTimeout(endingRecapResetTid);
+        endingRecapResetTid = null;
+      }
+    }
+
+    function setEndingButtonFeedback(buttonId, text, which, resetText, delay = 2200) {
+      const btn = document.getElementById(buttonId);
+      if (!btn) return;
+      clearEndingButtonReset(which);
+      btn.classList.add('copied');
+      btn.textContent = text;
+      const nextTid = setTimeout(() => {
+        btn.textContent = resetText;
+        btn.classList.remove('copied');
+        if (which === 'share') endingShareResetTid = null;
+        if (which === 'recap') endingRecapResetTid = null;
+      }, delay);
+      if (which === 'share') endingShareResetTid = nextTid;
+      if (which === 'recap') endingRecapResetTid = nextTid;
+    }
+
+    function resetEndingActionButtons() {
+      clearEndingButtonReset('share');
+      clearEndingButtonReset('recap');
+      const shareBtn = document.getElementById('ending-share-btn');
+      if (shareBtn) {
+        const alreadyShared = isCurrentStoryAlreadyShared();
+        shareBtn.textContent = alreadyShared ? '⇪ Copy Link' : '⇪ Share Story';
+        shareBtn.classList.remove('copied');
+        shareBtn.classList.toggle('already-shared', alreadyShared);
+        shareBtn.classList.toggle('is-publishing', Boolean(S.sharePublishInFlight) && !alreadyShared);
+        shareBtn.disabled = Boolean(S.sharePublishInFlight);
+        shareBtn.title = alreadyShared ? 'Copy the existing share link for this story.' : '';
+      }
+      const recapBtn = document.getElementById('ending-copy-btn');
+      if (recapBtn) {
+        recapBtn.textContent = '⧉ Copy Recap';
+        recapBtn.classList.remove('copied');
+      }
+    }
+
+    async function copyTextToClipboard(text) {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch {}
+      return false;
+    }
+
+    function buildSharePermalink(shareId) {
+      const url = new URL(window.location.href);
+      url.search = '';
+      url.searchParams.set('share', shareId);
+      url.hash = '';
+      return url.toString();
+    }
+
+    function base64ToUint8Array(data) {
+      const binary = atob(String(data || ''));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }
+
+    function blobToBase64(blob) {
+      return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = typeof reader.result === 'string' ? reader.result : '';
+          const match = result.match(/^data:.*?;base64,(.*)$/);
+          resolve(match?.[1] || '');
+        };
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function drawBlobToCanvas(blob) {
+      if (!blob) return null;
+      if (typeof createImageBitmap === 'function') {
+        try {
+          const bitmap = await createImageBitmap(blob);
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            if (typeof bitmap.close === 'function') bitmap.close();
+            return null;
+          }
+          ctx.drawImage(bitmap, 0, 0);
+          if (typeof bitmap.close === 'function') bitmap.close();
+          return canvas;
+        } catch {}
+      }
+
+      return new Promise(resolve => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(blob);
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          URL.revokeObjectURL(objectUrl);
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(null);
+        };
+        img.src = objectUrl;
+      });
+    }
+
+    async function rasterImagePayloadToWebpBase64(payload) {
+      if (payload?.type !== 'image' || !payload.data || !payload.mimeType) return '';
+      const mimeType = String(payload.mimeType).trim().toLowerCase().split(';')[0];
+      if (mimeType === 'image/webp') return payload.data;
+      if (!/^image\//i.test(mimeType)) return '';
+      const blob = new Blob([base64ToUint8Array(payload.data)], { type: mimeType });
+      const canvas = await drawBlobToCanvas(blob);
+      if (!canvas) return '';
+      const webpBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+      if (!webpBlob) return '';
+      return blobToBase64(webpBlob);
+    }
+
+    async function requestLambdaRasterImage(pageId, page) {
+      if (!page?.imagePrompt || !S.lambdaUrl) return null;
+      try {
+        const result = await callLambda({ action: 'generateImage', prompt: page.imagePrompt, genre: S.genre });
+        if (!result?.success || result.type !== 'image' || !result.data || !result.mimeType) return null;
+        const payload = { type: 'image', data: result.data, mimeType: result.mimeType };
+        cacheImage(pageId, payload);
+        return payload;
+      } catch {
+        return null;
+      }
+    }
+
+    async function ensureShareableWebpUpload(pageId, page) {
+      let payload = sanitizeStoredImagePayload(getCachedImage(pageId));
+      if ((!payload || payload.type !== 'image') && page?.imagePrompt) {
+        payload = await requestLambdaRasterImage(pageId, page);
+      }
+      if (!payload || payload.type !== 'image') return null;
+      const data = await rasterImagePayloadToWebpBase64(payload);
+      if (!data) return null;
+      const webpPayload = { type: 'image', data, mimeType: 'image/webp' };
+      cacheImage(pageId, webpPayload);
+      return { pageId, mimeType: 'image/webp', data };
+    }
+
+    async function mapWithConcurrency(items, limit, mapper) {
+      const results = new Array(items.length);
+      let cursor = 0;
+      const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length || 1)) }, async () => {
+        while (true) {
+          const idx = cursor;
+          cursor += 1;
+          if (idx >= items.length) return;
+          results[idx] = await mapper(items[idx], idx);
+        }
+      });
+      await Promise.all(workers);
+      return results;
     }
 
     /* ─── STORY CIRCLE ─────────────────────────────────────── */
@@ -7073,6 +7469,21 @@
     }
 
     /* ─── IMAGE LOADING ────────────────────────────────────── */
+    async function requestSharedStoryImage(pageId) {
+      if (S.storyOrigin !== 'shared' || !S.sharedShareId || !S.sharedImagePageIds.has(pageId)) return null;
+      try {
+        const result = await callLambda({ action: 'loadSharedStoryImage', shareId: S.sharedShareId, pageId }, 90000);
+        if (!result?.success || result.type !== 'image' || !result.data || !result.mimeType) return null;
+        return { type: 'image', data: result.data, mimeType: result.mimeType };
+      } catch (err) {
+        if (/HTTP 404/i.test(err?.message || '')) {
+          S.sharedImagePageIds.delete(pageId);
+          return null;
+        }
+        throw err;
+      }
+    }
+
     async function loadImage(pageId, page, source = 'current') {
       const storySessionId = S.storySessionId;
       const pendingKey = imageCacheKey(pageId, storySessionId);
@@ -7083,37 +7494,48 @@
         source: gaSafe(source, 16),
       }));
       try {
-        let data;
+        let data = null;
         let provider = S.imageMode === 'terrain' ? 'terrain' : 'lambda';
         let fallbackUsed = 0;
-        if (S.imageMode === 'terrain') {
-          data = { type: 'svg', data: generateSvg(S.genre, page.imagePrompt) };
-        } else {
+        if (S.storyOrigin === 'shared' && S.sharedShareId && S.sharedImagePageIds.has(pageId)) {
           try {
-            const result = await callLambda({ action: 'generateImage', prompt: page.imagePrompt, genre: S.genre });
-            if (result.success) {
-              data = { type: result.type, data: result.data, mimeType: result.mimeType };
-            } else {
-              console.warn('Image gen failed, using local SVG fallback:', result.error);
+            data = await requestSharedStoryImage(pageId);
+            if (data) provider = 'shared';
+          } catch (sharedErr) {
+            console.warn('Shared image load failed, falling back to gameplay generation:', sharedErr.message);
+          }
+        }
+
+        if (!data) {
+          if (S.imageMode === 'terrain') {
+            data = { type: 'svg', data: generateSvg(S.genre, page.imagePrompt) };
+          } else {
+            try {
+              const result = await callLambda({ action: 'generateImage', prompt: page.imagePrompt, genre: S.genre });
+              if (result.success) {
+                data = { type: result.type, data: result.data, mimeType: result.mimeType };
+              } else {
+                console.warn('Image gen failed, using local SVG fallback:', result.error);
+                data = { type: 'svg', data: generateSvg(S.genre, page.imagePrompt) };
+                provider = 'terrain';
+                fallbackUsed = 1;
+                trackEvent('image_request_fallback', gaStoryParams({
+                  page_id: gaSafe(pageId, 24),
+                  source: gaSafe(source, 16),
+                  reason: gaSafe(result.error || 'lambda_unsuccessful'),
+                }));
+              }
+            } catch (lambdaErr) {
+              console.warn('Image gen failed, using local SVG fallback:', lambdaErr.message);
               data = { type: 'svg', data: generateSvg(S.genre, page.imagePrompt) };
               provider = 'terrain';
               fallbackUsed = 1;
               trackEvent('image_request_fallback', gaStoryParams({
                 page_id: gaSafe(pageId, 24),
                 source: gaSafe(source, 16),
-                reason: gaSafe(result.error || 'lambda_unsuccessful'),
+                reason: gaErrorCode(lambdaErr),
               }));
             }
-          } catch (lambdaErr) {
-            console.warn('Image gen failed, using local SVG fallback:', lambdaErr.message);
-            data = { type: 'svg', data: generateSvg(S.genre, page.imagePrompt) };
-            provider = 'terrain';
-            fallbackUsed = 1;
-            trackEvent('image_request_fallback', gaStoryParams({
-              page_id: gaSafe(pageId, 24),
-              source: gaSafe(source, 16),
-              reason: gaErrorCode(lambdaErr),
-            }));
           }
         }
         if (storySessionId !== S.storySessionId) return;
@@ -7246,7 +7668,7 @@
 
       S.lastEndingType = resolvedType;
       syncEndingBackdrop(S.currentPageId);
-      resetEndingShareButton();
+      resetEndingActionButtons();
       showScreen('ending');
       if (endingScreen) endingScreen.scrollTop = 0;
       window.scrollTo(0, 0);
@@ -7271,41 +7693,155 @@
       }));
     }
 
-    async function shareEnding() {
-      const btn = document.getElementById('ending-share-btn');
+    async function copyEndingRecap() {
+      const btn = document.getElementById('ending-copy-btn');
       const type = S.lastEndingType || determineEnding(S.currentPageId || '');
       const report = endingReport(type);
       const copy = endingCopyFor(type);
       const story = endingShareText(type, report, copy);
-      let copied = false;
-
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(story);
-          copied = true;
-        }
-      } catch (_) {
-        copied = false;
-      }
+      const copied = await copyTextToClipboard(story);
 
       if (!copied) window.prompt('Copy your story:', story);
 
-      if (btn) {
-        if (endingShareResetTid) clearTimeout(endingShareResetTid);
-        btn.classList.add('copied');
-        btn.textContent = copied ? '✓ Story Copied' : 'Story Ready';
-        endingShareResetTid = setTimeout(() => {
-          btn.textContent = '⧉ Copy Story';
-          btn.classList.remove('copied');
-          endingShareResetTid = null;
-        }, 2200);
-      }
+      if (btn) setEndingButtonFeedback('ending-copy-btn', copied ? '✓ Recap Copied' : '✓ Recap Ready', 'recap', '⧉ Copy Recap');
 
       trackEvent('ending_recap_copied', gaStoryParams({
         ending_type: gaSafe(type, 16),
         ending_score: report.score,
         copied: Number(copied),
       }));
+    }
+
+    async function shareEnding() {
+      const btn = document.getElementById('ending-share-btn');
+      if (isCurrentStoryAlreadyShared()) {
+        const shareId = currentPublishedShareId();
+        const permalink = buildSharePermalink(shareId);
+        const copied = await copyTextToClipboard(permalink);
+        if (!copied) window.prompt('Copy your share link:', permalink);
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('is-publishing');
+          btn.classList.add('already-shared');
+          btn.title = 'Copy the existing share link for this story.';
+          setEndingButtonFeedback(
+            'ending-share-btn',
+            copied ? '✓ Link Copied' : '✓ Link Ready',
+            'share',
+            '⇪ Copy Link',
+            2200
+          );
+        }
+        trackEvent('story_share_link_copied', gaStoryParams({
+          share_id: gaSafe(shareId, 32),
+          copied: Number(copied),
+        }));
+        return;
+      }
+      if (S.sharePublishInFlight || !S.story?.pages || !S.genre || !S.era || !S.archetype) return;
+
+      const orderedPageIds = sortedStoryPageIds(S.story);
+      const uploadedPageIds = [];
+      S.sharePublishInFlight = true;
+      if (btn) {
+        clearEndingButtonReset('share');
+        btn.disabled = true;
+        btn.classList.remove('copied');
+        btn.classList.remove('already-shared');
+        btn.classList.add('is-publishing');
+        btn.title = '';
+        btn.textContent = 'Publishing 0%';
+      }
+
+      try {
+        const created = await callLambda({
+          action: 'createSharedStory',
+          genre: S.genre,
+          era: S.era,
+          archetype: S.archetype,
+          story: S.story,
+        }, 120000);
+        if (!created?.success || !created.shareId || !created.uploadToken) {
+          throw new Error(created?.error || 'Unable to create shared story.');
+        }
+
+        const total = orderedPageIds.length || 1;
+        const uploads = await mapWithConcurrency(orderedPageIds, 3, async (pageId, index) => {
+          const page = S.story?.pages?.[pageId];
+          const shareable = await ensureShareableWebpUpload(pageId, page);
+          if (btn) {
+            const progress = Math.round(((index + 1) / total) * 100);
+            btn.textContent = `Publishing ${progress}%`;
+          }
+          if (!shareable?.data) return null;
+          try {
+            const result = await callLambda({
+              action: 'uploadSharedStoryImage',
+              shareId: created.shareId,
+              uploadToken: created.uploadToken,
+              pageId,
+              mimeType: 'image/webp',
+              data: shareable.data,
+            }, 120000);
+            if (!result?.success) return null;
+            return pageId;
+          } catch (uploadErr) {
+            console.warn('Shared image upload failed, skipping page:', pageId, uploadErr?.message || uploadErr);
+            return null;
+          }
+        });
+        uploads.filter(Boolean).forEach(pageId => uploadedPageIds.push(pageId));
+
+        const finalized = await callLambda({
+          action: 'finalizeSharedStory',
+          shareId: created.shareId,
+          uploadToken: created.uploadToken,
+          uploadedPageIds,
+        }, 120000);
+        if (!finalized?.success) {
+          throw new Error(finalized?.error || 'Unable to finalize shared story.');
+        }
+
+        const permalink = buildSharePermalink(created.shareId);
+        const copied = await copyTextToClipboard(permalink);
+        if (!copied) window.prompt('Copy your share link:', permalink);
+
+        S.publishedShareId = normalizeStoryText(created.shareId, 80).toLowerCase();
+        persistCurrentStoryMeta({ publishedShareId: S.publishedShareId });
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('is-publishing');
+          btn.classList.add('already-shared');
+          btn.title = 'Copy the existing share link for this story.';
+          setEndingButtonFeedback(
+            'ending-share-btn',
+            copied ? '✓ Link Copied' : '✓ Link Ready',
+            'share',
+            '⇪ Copy Link',
+            2800
+          );
+        }
+
+        trackEvent('story_shared', gaStoryParams({
+          share_id: gaSafe(created.shareId, 32),
+          stored_images: uploadedPageIds.length,
+          copied: Number(copied),
+        }));
+      } catch (err) {
+        console.error('Story share failed:', err);
+        if (btn) {
+          btn.classList.remove('is-publishing');
+          btn.disabled = false;
+          setEndingButtonFeedback('ending-share-btn', 'Share Failed', 'share', '⇪ Share Story', 2600);
+        }
+        trackEvent('story_share_failed', gaStoryParams({
+          error_code: gaErrorCode(err),
+          error_message: gaSafe(err?.message || err),
+        }));
+        alert(err?.message || 'Story sharing failed.');
+      } finally {
+        S.sharePublishInFlight = false;
+      }
     }
 
     function playAgain() {
@@ -7357,6 +7893,7 @@
         S.story = null;
         S.storyStorageId = '';
         resetImageState();
+        setLocalStoryContext();
         S.currentPageId = 'page_1'; S.choicesMade = [];
         S.storyState = {};
         S.storyRunStartedAt = 0;
@@ -7384,6 +7921,7 @@
 
     /* ─── INIT ─────────────────────────────────────────────── */
     function init() {
+      const startupRequest = getStartupStoryRequest();
       buildGrid('genre-grid',     GENRES,     'genre', 17);
       buildGrid('era-grid',       ERAS,       'era');
       buildGrid('archetype-grid', ARCHETYPES, 'archetype', 17);
@@ -7449,7 +7987,13 @@
           handleDeleteStoryDecision(false);
         });
       }
-      showScreen('setup');
+      if (startupRequest) {
+        showScreen('loading');
+        resetLoading();
+        startTimer();
+      } else {
+        showScreen('setup');
+      }
       renderSetupHistory();
       checkReady();
       renderStoryPreview();
@@ -7469,6 +8013,8 @@
         const reason = evt?.reason?.message || evt?.reason || 'unknown';
         trackEvent('unhandled_rejection', gaStoryParams({ message: gaSafe(reason) }));
       });
+
+      if (startupRequest) void bootstrapStartupStory(startupRequest);
     }
 
     init();
