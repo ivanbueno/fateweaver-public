@@ -3725,10 +3725,12 @@
         selectionStorageId(entry.genre, entry.era, entry.archetype) === target
       )) || null;
     }
-    function savedStoryForSharedId(shareId) {
+    function savedStoryForShareId(shareId) {
       const target = normalizeStoryText(shareId, 80).toLowerCase();
       if (!target) return null;
-      return savedStoriesFromStorage().find(entry => entry.sharedShareId === target) || null;
+      return savedStoriesFromStorage().find(entry => (
+        entry.sharedShareId === target || entry.publishedShareId === target
+      )) || null;
     }
 
     function savedStoryStorageKeys() {
@@ -4289,8 +4291,8 @@
       const shareId = normalizeStoryText(options.shareId || payload?.shareId || '', 80).toLowerCase();
       if (!shareId || !payload?.story?.pages) throw new Error('Shared story payload is incomplete.');
 
-      const sharedStoryId = sharedStoryStorageIdForShareId(shareId);
-      const existingEntry = savedStoryForSharedId(shareId);
+      const existingEntry = savedStoryForShareId(shareId);
+      const sharedStoryId = existingEntry?.storyId || sharedStoryStorageIdForShareId(shareId);
       let targetPage = 'page_1';
       let targetChoices = [];
       let targetStartedAt = Date.now();
@@ -4354,31 +4356,57 @@
       return true;
     }
 
+    async function loadSharedStoryRequestPayload(request, timeoutMs = 120000) {
+      if (!request) throw new Error('Shared story request is missing.');
+      if (!S.lambdaUrl) throw new Error('Lambda URL not configured. Shared story links require a working backend.');
+      if (request.type === 'selection' && request.mode === 'all') {
+        throw new Error('Selection mode "all" is API-only. Use latest or random in the browser.');
+      }
+
+      const result = request.type === 'share'
+        ? await callLambda({ action: 'loadSharedStory', shareId: request.shareId }, timeoutMs)
+        : await callLambda({
+          action: 'loadSharedStoriesBySelection',
+          genre: request.genre,
+          era: request.era,
+          archetype: request.archetype,
+          mode: request.mode,
+        }, timeoutMs);
+
+      if (!result?.success) throw new Error(result?.error || 'Shared story lookup failed.');
+      return result;
+    }
+
+    async function openRandomSharedStoryFallback(sourceError) {
+      const result = await loadSharedStoryRequestPayload({
+        type: 'selection',
+        genre: S.genre,
+        era: S.era,
+        archetype: S.archetype,
+        mode: 'random',
+      });
+      stopTimer();
+      await completeLoading();
+      const opened = await openSharedStoryPayload(result, {
+        shareId: result.shareId,
+        mode: 'random',
+      });
+      if (!opened) {
+        showScreen('setup');
+        return true;
+      }
+      trackEvent('story_generation_fallback_loaded', gaStoryParams({
+        fallback_mode: 'random',
+        fallback_share_id: gaSafe(result.shareId, 32),
+        original_error_code: gaErrorCode(sourceError),
+      }));
+      return true;
+    }
+
     async function bootstrapStartupStory(request = getStartupStoryRequest()) {
       if (!request) return false;
-      if (!S.lambdaUrl) {
-        stopTimer();
-        showLoadError('Lambda URL not configured. Shared story links require a working backend.');
-        return true;
-      }
-
-      if (request.type === 'selection' && request.mode === 'all') {
-        stopTimer();
-        showLoadError('Selection mode "all" is API-only. Use latest or random in the browser.');
-        return true;
-      }
-
       try {
-        const result = request.type === 'share'
-          ? await callLambda({ action: 'loadSharedStory', shareId: request.shareId }, 120000)
-          : await callLambda({
-            action: 'loadSharedStoriesBySelection',
-            genre: request.genre,
-            era: request.era,
-            archetype: request.archetype,
-            mode: request.mode,
-          }, 120000);
-        if (!result?.success) throw new Error(result?.error || 'Shared story lookup failed.');
+        const result = await loadSharedStoryRequestPayload(request, 120000);
         stopTimer();
         await completeLoading();
         const opened = await openSharedStoryPayload(result, {
@@ -5659,13 +5687,22 @@
           page_count: Object.keys(result.story?.pages || {}).length,
         }));
       } catch(err) {
-        stopTimer();
-        showLoadError(err.message);
         trackEvent('story_generation_failed', gaStoryParams({
           duration_ms: A.storyStartedAt ? Math.round(performance.now() - A.storyStartedAt) : 0,
           error_code: gaErrorCode(err),
           error_message: gaSafe(err?.message || err),
         }));
+        try {
+          if (await openRandomSharedStoryFallback(err)) return;
+        } catch (fallbackErr) {
+          trackEvent('story_generation_fallback_failed', gaStoryParams({
+            fallback_mode: 'random',
+            fallback_error_code: gaErrorCode(fallbackErr),
+            fallback_error_message: gaSafe(fallbackErr?.message || fallbackErr),
+          }));
+        }
+        stopTimer();
+        showLoadError(err.message);
       }
     }
 
