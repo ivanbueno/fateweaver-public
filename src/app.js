@@ -4861,6 +4861,7 @@
         const btn = document.createElement('button');
         btn.className = 'opt';
         btn.textContent = label;
+        attachUiButtonSounds(btn);
         btn.onclick = () => {
           grid.querySelectorAll('.opt').forEach(b => b.classList.remove('sel'));
           btn.classList.add('sel');
@@ -4901,6 +4902,7 @@
         const moreBtn = document.createElement('button');
         moreBtn.className = 'opt opt-more';
         moreBtn.textContent = `+${hidden.length} more`;
+        attachUiButtonSounds(moreBtn);
         moreBtn.onclick = () => {
           trackEvent('selection_more_opened', gaStoryParams({
             field: gaSafe(stateKey, 16),
@@ -5295,6 +5297,15 @@
     const MUSIC_VOL   = 0.22; // ambient volume — low enough not to overpower story text
     const MUSIC_XFADE = 1.5;  // crossfade duration in seconds
     const AUDIO_UNLOCK_EVENTS = ['touchstart', 'pointerdown', 'click', 'keydown'];
+    const UI_SOUND_CONFIG = Object.freeze({
+      hover: { path: 'sfx/hover.wav', volume: 0.24 },
+      click: { path: 'sfx/click.wav', volume: 0.34 },
+    });
+    const UI_SFX = {
+      gain: null,
+      buffers: new Map(),
+      pending: new Map(),
+    };
     const LOCAL_SOUNDTRACKS = {
       'Court Intrigue': ['Courtly Intrigue.ogg', 'Suspensions at Court.ogg'],
       'Cyberpunk': ['Neon Undercurrent.ogg', 'Neon Veins.ogg'],
@@ -5387,8 +5398,9 @@
       return String(path).split('/').map(part => encodeURIComponent(part)).join('/');
     }
 
-    function decodeMusicBuffer(ab) {
-      if (!MUS.ctx) return Promise.reject(new Error('Audio context unavailable.'));
+    function decodeAudioBuffer(ab) {
+      const ctx = initAudioCtx();
+      if (!ctx) return Promise.reject(new Error('Audio context unavailable.'));
       return new Promise((resolve, reject) => {
         let settled = false;
         const done = (fn, val) => {
@@ -5397,7 +5409,7 @@
           fn(val);
         };
         try {
-          const maybePromise = MUS.ctx.decodeAudioData(
+          const maybePromise = ctx.decodeAudioData(
             ab.slice(0),
             buf => done(resolve, buf),
             err => done(reject, err || new Error('Audio decode failed.'))
@@ -5408,6 +5420,80 @@
         } catch (err) {
           done(reject, err);
         }
+      });
+    }
+
+    function ensureUiSoundGain() {
+      const ctx = initAudioCtx();
+      if (!ctx) return null;
+      if (!UI_SFX.gain) {
+        UI_SFX.gain = ctx.createGain();
+        UI_SFX.gain.gain.setValueAtTime(1, ctx.currentTime);
+        UI_SFX.gain.connect(ctx.destination);
+      }
+      return UI_SFX.gain;
+    }
+
+    async function loadUiSoundBuffer(kind) {
+      const cfg = UI_SOUND_CONFIG[kind];
+      if (!cfg) return null;
+      if (UI_SFX.buffers.has(kind)) return UI_SFX.buffers.get(kind);
+      if (UI_SFX.pending.has(kind)) return UI_SFX.pending.get(kind);
+      if (!initAudioCtx()) return null;
+
+      const pending = fetch(assetUrl(cfg.path), { cache: 'force-cache' })
+        .then(res => {
+          if (!res.ok) throw new Error(`UI sound HTTP ${res.status}`);
+          return res.arrayBuffer();
+        })
+        .then(ab => decodeAudioBuffer(ab))
+        .then(buffer => {
+          UI_SFX.buffers.set(kind, buffer);
+          return buffer;
+        })
+        .catch(err => {
+          console.warn(`UI sound (${kind}) unavailable:`, err.message);
+          return null;
+        })
+        .finally(() => UI_SFX.pending.delete(kind));
+
+      UI_SFX.pending.set(kind, pending);
+      return pending;
+    }
+
+    function preloadUiSounds() {
+      Object.keys(UI_SOUND_CONFIG).forEach(kind => { void loadUiSoundBuffer(kind); });
+    }
+
+    async function playUiSound(kind) {
+      const cfg = UI_SOUND_CONFIG[kind];
+      if (!cfg) return;
+
+      const ready = await ensureAudioPlaybackReady();
+      if (!ready || !MUS.ctx) return;
+
+      const buffer = UI_SFX.buffers.get(kind) || await loadUiSoundBuffer(kind);
+      const destination = ensureUiSoundGain();
+      if (!buffer || !destination || !MUS.ctx) return;
+
+      const src = MUS.ctx.createBufferSource();
+      const gain = MUS.ctx.createGain();
+      gain.gain.setValueAtTime(cfg.volume, MUS.ctx.currentTime);
+      src.buffer = buffer;
+      src.connect(gain);
+      gain.connect(destination);
+      src.start();
+    }
+
+    function attachUiButtonSounds(btn) {
+      if (!(btn instanceof HTMLElement) || btn.dataset.uiSoundBound === '1') return;
+      btn.dataset.uiSoundBound = '1';
+      btn.addEventListener('pointerenter', evt => {
+        if (evt.pointerType === 'touch') return;
+        void playUiSound('hover');
+      }, { passive: true });
+      btn.addEventListener('click', () => {
+        void playUiSound('click');
       });
     }
 
@@ -5499,7 +5585,7 @@
       const ab   = new ArrayBuffer(bin.length);
       const view = new Uint8Array(ab);
       for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-      return decodeMusicBuffer(ab);
+      return decodeAudioBuffer(ab);
     }
 
     async function fetchFallbackMusicClip() {
@@ -5511,7 +5597,7 @@
       const res = await fetch(path, { cache: 'force-cache' });
       if (!res.ok) throw new Error(`Fallback soundtrack HTTP ${res.status}`);
       const ab = await res.arrayBuffer();
-      const buf = await decodeMusicBuffer(ab);
+      const buf = await decodeAudioBuffer(ab);
       return { buf, chosen };
     }
 
@@ -6736,6 +6822,7 @@
           btn.style.setProperty('--choice-delay', `${idx * 70}ms`);
           btn.innerHTML = `<span class="choice-index">${idx + 1}</span><span class="choice-label">${esc(c.label)}</span><span class="choice-arrow">→</span>`;
           btn.setAttribute('aria-label', c.label);
+          attachUiButtonSounds(btn);
           btn.onclick = evt => makeChoice(c, btn, evt);
           container.appendChild(btn);
         });
@@ -6745,6 +6832,7 @@
         btn.className = 'choice-btn ending-btn';
         btn.style.setProperty('--choice-delay', '0ms');
         btn.innerHTML = `<span class="choice-index">✦</span><span class="choice-label">See Your Fate</span><span class="choice-arrow">→</span>`;
+        attachUiButtonSounds(btn);
         btn.onclick   = () => showEnding(determineEnding(state_currentId()));
         container.appendChild(btn);
       }
@@ -8038,6 +8126,7 @@
       applyScreenTexture('noir'); // default theme
       applyAmbientLoop('noir');
       bindAudioUnlockListeners();
+      preloadUiSounds();
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden && MUS.ready) void ensureAudioPlaybackReady();
       });
