@@ -5298,13 +5298,11 @@
     const MUSIC_XFADE = 1.5;  // crossfade duration in seconds
     const AUDIO_UNLOCK_EVENTS = ['touchstart', 'pointerdown', 'click', 'keydown'];
     const UI_SOUND_CONFIG = Object.freeze({
-      hover: { path: 'sfx/hover.wav', volume: 0.24 },
-      click: { path: 'sfx/click.wav', volume: 0.34 },
+      hover: { sources: ['sfx/hover.mp3', 'sfx/hover.wav'], volume: 0.10 },
+      click: { sources: ['sfx/click.mp3', 'sfx/click.wav'], volume: 1.0 },
     });
     const UI_SFX = {
-      gain: null,
-      buffers: new Map(),
-      pending: new Map(),
+      base: new Map(),
     };
     const LOCAL_SOUNDTRACKS = {
       'Court Intrigue': ['Courtly Intrigue.ogg', 'Suspensions at Court.ogg'],
@@ -5395,7 +5393,8 @@
     }
 
     function assetUrl(path) {
-      return String(path).split('/').map(part => encodeURIComponent(part)).join('/');
+      const encoded = String(path).split('/').map(part => encodeURIComponent(part)).join('/');
+      return new URL(encoded, document.baseURI).toString();
     }
 
     function decodeAudioBuffer(ab) {
@@ -5423,66 +5422,42 @@
       });
     }
 
-    function ensureUiSoundGain() {
-      const ctx = initAudioCtx();
-      if (!ctx) return null;
-      if (!UI_SFX.gain) {
-        UI_SFX.gain = ctx.createGain();
-        UI_SFX.gain.gain.setValueAtTime(1, ctx.currentTime);
-        UI_SFX.gain.connect(ctx.destination);
-      }
-      return UI_SFX.gain;
+    function resolveUiSoundSource(kind) {
+      const cfg = UI_SOUND_CONFIG[kind];
+      if (!cfg?.sources?.length) return '';
+      const probe = document.createElement('audio');
+      const mp3Source = cfg.sources.find(src => /\.mp3$/i.test(src));
+      if (mp3Source && probe.canPlayType('audio/mpeg')) return mp3Source;
+      return cfg.sources[cfg.sources.length - 1] || '';
     }
 
-    async function loadUiSoundBuffer(kind) {
-      const cfg = UI_SOUND_CONFIG[kind];
-      if (!cfg) return null;
-      if (UI_SFX.buffers.has(kind)) return UI_SFX.buffers.get(kind);
-      if (UI_SFX.pending.has(kind)) return UI_SFX.pending.get(kind);
-      if (!initAudioCtx()) return null;
+    function getUiSoundTemplate(kind) {
+      if (UI_SFX.base.has(kind)) return UI_SFX.base.get(kind);
 
-      const pending = fetch(assetUrl(cfg.path), { cache: 'force-cache' })
-        .then(res => {
-          if (!res.ok) throw new Error(`UI sound HTTP ${res.status}`);
-          return res.arrayBuffer();
-        })
-        .then(ab => decodeAudioBuffer(ab))
-        .then(buffer => {
-          UI_SFX.buffers.set(kind, buffer);
-          return buffer;
-        })
-        .catch(err => {
-          console.warn(`UI sound (${kind}) unavailable:`, err.message);
-          return null;
-        })
-        .finally(() => UI_SFX.pending.delete(kind));
+      const src = resolveUiSoundSource(kind);
+      if (!src) return null;
 
-      UI_SFX.pending.set(kind, pending);
-      return pending;
+      const audio = new Audio(assetUrl(src));
+      audio.preload = 'auto';
+      UI_SFX.base.set(kind, audio);
+      return audio;
     }
 
     function preloadUiSounds() {
-      Object.keys(UI_SOUND_CONFIG).forEach(kind => { void loadUiSoundBuffer(kind); });
+      Object.keys(UI_SOUND_CONFIG).forEach(kind => {
+        const audio = getUiSoundTemplate(kind);
+        if (audio) audio.load();
+      });
     }
 
-    async function playUiSound(kind) {
+    function playUiSound(kind) {
       const cfg = UI_SOUND_CONFIG[kind];
-      if (!cfg) return;
+      const template = getUiSoundTemplate(kind);
+      if (!cfg || !template) return;
 
-      const ready = await ensureAudioPlaybackReady();
-      if (!ready || !MUS.ctx) return;
-
-      const buffer = UI_SFX.buffers.get(kind) || await loadUiSoundBuffer(kind);
-      const destination = ensureUiSoundGain();
-      if (!buffer || !destination || !MUS.ctx) return;
-
-      const src = MUS.ctx.createBufferSource();
-      const gain = MUS.ctx.createGain();
-      gain.gain.setValueAtTime(cfg.volume, MUS.ctx.currentTime);
-      src.buffer = buffer;
-      src.connect(gain);
-      gain.connect(destination);
-      src.start();
+      const clip = new Audio(template.currentSrc || template.src);
+      clip.volume = cfg.volume;
+      clip.play().catch(() => {});
     }
 
     function attachUiButtonSounds(btn) {
@@ -5490,10 +5465,11 @@
       btn.dataset.uiSoundBound = '1';
       btn.addEventListener('pointerenter', evt => {
         if (evt.pointerType === 'touch') return;
-        void playUiSound('hover');
+        playUiSound('hover');
       }, { passive: true });
       btn.addEventListener('click', () => {
-        void playUiSound('click');
+        void ensureAudioPlaybackReady();
+        playUiSound('click');
       });
     }
 
