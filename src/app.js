@@ -4807,7 +4807,7 @@
 
     function resetQuickPresetUi() {
       setQuickPresetRolling(false);
-      setQuickPresetLabel('Quick Preset');
+      setQuickPresetLabel('Roll a Random Story');
       setQuickPresetResult('', false);
     }
 
@@ -4838,7 +4838,7 @@
           setQuickPresetResult('Unable to apply a quick preset right now. Try once more.', true);
           return;
         }
-        setQuickPresetLabel('Re-roll Preset');
+        setQuickPresetLabel('Roll Again');
         setQuickPresetResult(`Rolled: ${quickPresetSummaryText(preset)}`);
         trackEvent('selection_randomized', gaStoryParams({
           preset_genre: gaSafe(preset.genre, 48),

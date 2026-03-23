@@ -1334,30 +1334,56 @@ body {
   padding-top: 0.72rem;
 }
 .quick-preset-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   width: 100%;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.72rem;
-  padding: 0.64rem 0.72rem;
-  border: 1px solid var(--color-bdr);
+  gap: 0.8rem;
+  padding: 0.78rem 0.84rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 2px;
-  background: linear-gradient(125deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.36));
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.16), transparent 34%),
+    linear-gradient(125deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.42));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 14px 32px rgba(0, 0, 0, 0.24);
   color: rgba(255, 255, 255, 0.94);
   cursor: pointer;
   text-align: left;
   transition: border-color var(--motion-fast-plus) var(--ease-standard), box-shadow 0.26s ease, transform var(--motion-fast-plus) var(--ease-standard), background 0.26s ease;
 }
+.quick-preset-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), var(--color-primary), rgba(255, 255, 255, 0.16));
+  opacity: 0.82;
+  pointer-events: none;
+}
 .quick-preset-btn:enabled:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.38);
-  background: linear-gradient(125deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.28));
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.44);
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.22), transparent 38%),
+    linear-gradient(125deg, rgba(255, 255, 255, 0.16), rgba(0, 0, 0, 0.34));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 18px 36px rgba(0, 0, 0, 0.32),
+    0 0 22px var(--glow-color);
 }
 .quick-preset-btn:focus-visible {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px var(--color-primary), 0 0 18px var(--glow-color);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 0 1px var(--color-primary),
+    0 0 22px var(--glow-color),
+    0 16px 32px rgba(0, 0, 0, 0.28);
 }
 .quick-preset-btn:disabled {
   cursor: wait;
@@ -1367,49 +1393,72 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.7rem;
-  height: 1.7rem;
+  width: 1.95rem;
+  height: 1.95rem;
   border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.26);
   color: var(--color-primary);
-  font-size: 0.92rem;
+  font-size: 1.08rem;
   line-height: 1;
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.06);
 }
 .quick-preset-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.16rem;
+  gap: 0.18rem;
+}
+.quick-preset-kicker {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.42rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  color: var(--color-primary);
+  font-family: var(--font-hud);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.15;
 }
 .quick-preset-title {
   font-family: var(--font-signal);
-  font-size: 0.88rem;
-  letter-spacing: 0.13em;
+  font-size: 1rem;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.96);
-  line-height: 1.1;
+  line-height: 1;
 }
 .quick-preset-caption {
   font-family: var(--font-hud);
-  font-size: 0.64rem;
-  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.66);
+  color: rgba(255, 255, 255, 0.78);
   line-height: 1.25;
 }
 .quick-preset-arrow {
   font-family: var(--font-signal);
-  font-size: 1.04rem;
+  font-size: 1.46rem;
   color: var(--color-primary);
-  opacity: 0.9;
-  transition: transform var(--motion-fast-plus) var(--ease-standard);
+  opacity: 1;
+  transition: transform var(--motion-fast-plus) var(--ease-standard), filter var(--motion-fast-plus) var(--ease-standard);
 }
 .quick-preset-btn:enabled:hover .quick-preset-arrow {
-  transform: rotate(-18deg);
+  transform: translateX(2px) rotate(-24deg);
+  filter: drop-shadow(0 0 12px var(--glow-color));
 }
 .setup-quick-preset.is-rolling .quick-preset-btn {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 18px var(--glow-color);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 22px var(--glow-color),
+    0 18px 34px rgba(0, 0, 0, 0.28);
 }
 .setup-quick-preset.is-rolling .quick-preset-arrow {
   animation: quickPresetSpin 0.68s var(--ease-linear) infinite;
@@ -4275,14 +4324,17 @@ body {
     padding: 0.72rem 0.82rem 0.28rem;
   }
   .quick-preset-btn {
-    gap: 0.62rem;
-    padding: 0.56rem 0.62rem;
+    gap: 0.68rem;
+    padding: 0.68rem 0.72rem;
+  }
+  .quick-preset-kicker {
+    font-size: 0.5rem;
   }
   .quick-preset-title {
-    font-size: 0.82rem;
+    font-size: 0.88rem;
   }
   .quick-preset-caption {
-    font-size: 0.62rem;
+    font-size: 0.6rem;
   }
   .quick-preset-result {
     font-size: 0.58rem;
@@ -4484,20 +4536,24 @@ body {
   }
   .quick-preset-btn {
     grid-template-columns: auto 1fr;
-    gap: 0.5rem;
-    padding: 0.54rem 0.56rem;
+    gap: 0.56rem;
+    padding: 0.62rem 0.6rem;
   }
   .quick-preset-icon {
-    width: 1.52rem;
-    height: 1.52rem;
-    font-size: 0.84rem;
+    width: 1.64rem;
+    height: 1.64rem;
+    font-size: 0.92rem;
+  }
+  .quick-preset-kicker {
+    padding: 0.08rem 0.34rem;
+    font-size: 0.46rem;
   }
   .quick-preset-title {
-    font-size: 0.74rem;
-    letter-spacing: 0.11em;
+    font-size: 0.8rem;
+    letter-spacing: 0.09em;
   }
   .quick-preset-caption {
-    font-size: 0.56rem;
+    font-size: 0.57rem;
   }
   .quick-preset-arrow {
     display: none;
